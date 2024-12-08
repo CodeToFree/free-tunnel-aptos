@@ -1,0 +1,17 @@
+[package]
+name = "free_tunnel_aptos"
+version = "1.0.0"
+authors = []
+
+[addresses]
+std = "0x1"
+free_tunnel_aptos = "0x33"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
