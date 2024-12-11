@@ -46,7 +46,7 @@ module free_tunnel_aptos::message {
 
     #[test(account = @0x1)]
     public entry fun sender_can_set_message(account: signer) acquires MessageHolder {
-        let msg: string::String = string::utf8(b"Running test for sender_can_set_message...");
+        let _msg: string::String = string::utf8(b"Running test for sender_can_set_message...");
 
         let addr = signer::address_of(&account);
         aptos_framework::account::create_account_for_test(addr);

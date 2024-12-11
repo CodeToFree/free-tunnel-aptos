@@ -9,6 +9,7 @@ module free_tunnel_aptos::req_helpers {
     use std::type_info::{Self, TypeInfo};
     use aptos_framework::coin;
     use free_tunnel_aptos::utils::{smallU64ToString, hexToString};
+    friend free_tunnel_aptos::permissions;
 
 
     // =========================== Constants ==========================
@@ -38,13 +39,12 @@ module free_tunnel_aptos::req_helpers {
         tokenDecimals: table::Table<u8, u8>,
     }
 
-    // public(package) fun initReqHelpersStorage(ctx: &mut TxContext): ReqHelpersStorage {
-    //     ReqHelpersStorage {
-    //         id: object::new(ctx),
-    //         tokens: table::new(ctx),
-    //         tokenDecimals: table::new(ctx),
-    //     }
-    // }
+    public(friend) fun initReqHelpersStorage(): ReqHelpersStorage {
+        ReqHelpersStorage {
+            tokens: table::new(),
+            tokenDecimals: table::new(),
+        }
+    }
 
     #[event]
     struct TokenAdded has drop, store {
