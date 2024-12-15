@@ -5,7 +5,7 @@ authors = []
 
 [addresses]
 std = "0x1"
-free_tunnel_aptos = "0x33"
+free_tunnel_aptos = "0x33dd"
 
 [dev-addresses]
 
