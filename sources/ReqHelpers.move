@@ -10,7 +10,9 @@ module free_tunnel_aptos::req_helpers {
     use aptos_framework::coin;
     use free_tunnel_aptos::utils::{smallU64ToString, hexToString};
     friend free_tunnel_aptos::permissions;
-
+    friend free_tunnel_aptos::atomic_mint;
+    friend free_tunnel_aptos::atomic_lock;
+    
 
     // =========================== Constants ==========================
     const CHAIN: u8 = 0xa1;     // TODO: check chain id
@@ -39,11 +41,11 @@ module free_tunnel_aptos::req_helpers {
         tokenDecimals: table::Table<u8, u8>,
     }
 
-    public(friend) fun initReqHelpersStorage(): ReqHelpersStorage {
-        ReqHelpersStorage {
+    public(friend) fun initReqHelpersStorage(admin: &signer) {
+        move_to(admin, ReqHelpersStorage {
             tokens: table::new(),
             tokenDecimals: table::new(),
-        }
+        })
     }
 
     #[event]

@@ -9,6 +9,8 @@ module free_tunnel_aptos::permissions {
     use std::timestamp::now_seconds;
     use free_tunnel_aptos::utils::{recoverEthAddress, smallU64ToString, smallU64Log10, assertEthAddressList, hexToString};
     use free_tunnel_aptos::req_helpers::{BRIDGE_CHANNEL, ETH_SIGN_HEADER};
+    friend free_tunnel_aptos::atomic_mint;
+    friend free_tunnel_aptos::atomic_lock;
 
 
     // =========================== Constants ==========================
@@ -44,15 +46,15 @@ module free_tunnel_aptos::permissions {
         _exeActiveSinceForIndex: vector<u64>,
     }
 
-    public(friend) fun initPermissionsStorage(initAdmin: address): PermissionsStorage {
-        PermissionsStorage {
-            _admin: initAdmin,
+    public(friend) fun initPermissionsStorage(admin: &signer) {
+        move_to(admin, PermissionsStorage {
+            _admin: signer::address_of(admin),
             _proposerIndex: table::new(),
             _proposerList: vector::empty(),
             _executorsForIndex: vector::empty(),
             _exeThresholdForIndex: vector::empty(),
             _exeActiveSinceForIndex: vector::empty(),
-        }
+        })
     }
 
     public entry fun initExecutors(
@@ -358,4 +360,5 @@ module free_tunnel_aptos::permissions {
         assert!(!cmpAddrList(vector[ethAddr2, ethAddr1], vector[ethAddr2, ethAddr2]), 1);
         assert!(!cmpAddrList(vector[ethAddr2, ethAddr3], vector[ethAddr2, ethAddr3]), 1);
     }
+
 }

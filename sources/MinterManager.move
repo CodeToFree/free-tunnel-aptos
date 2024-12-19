@@ -1,7 +1,6 @@
 module free_tunnel_aptos::minter_manager {
 
     use std::signer;
-    use std::string::utf8;
     use std::option::{Self, Option};
     use aptos_framework::coin::{Self, MintCapability, BurnCapability};
     use aptos_framework::managed_coin;
@@ -22,33 +21,14 @@ module free_tunnel_aptos::minter_manager {
     }
 
     
-    // =========================== Admin Functions ===========================
-    /**
-     * Set up `TreasuryCapabilities` resource from `coin::initialize`.
-     */
-    public entry fun setupTreasuryFromInitialize<CoinType>(
-        admin: &signer,
-        name: vector<u8>,
-        symbol: vector<u8>,
-        decimals: u8,
-    ) {
-        let (burnCap, freezeCap, mintCap) = coin::initialize<CoinType>(
-            admin, utf8(name), utf8(symbol), decimals, true,
-        );
-        move_to(admin, TreasuryCapManager<CoinType> {
-            initialMintCap: mintCap,
-            initialBurnCap: burnCap,
-        });
-        coin::destroy_freeze_cap(freezeCap);
-    }
-
+    // =========================== Coin Admin Functions ===========================
     /**
      * Set up `TreasuryCapabilities` resource from `managed_coin::Capabilities`.
      *  This operation is irreversible!
      */
-    public entry fun setupTreasuryFromCapabilities<CoinType>(admin: &signer) {
-        let (burnCap, freezeCap, mintCap) = managed_coin::remove_caps<CoinType>(admin);
-        move_to(admin, TreasuryCapManager<CoinType> {
+    public entry fun setupTreasuryFromCapabilities<CoinType>(coinAdmin: &signer) {
+        let (burnCap, freezeCap, mintCap) = managed_coin::remove_caps<CoinType>(coinAdmin);
+        move_to(coinAdmin, TreasuryCapManager<CoinType> {
             initialMintCap: mintCap,
             initialBurnCap: burnCap,
         });
@@ -56,31 +36,20 @@ module free_tunnel_aptos::minter_manager {
     }
 
     /**
-     * Register a `MinterCap` resource for a minter. 
-     *  Should be called by the minter itself.
-     */
-    public entry fun registerMinterCap<CoinType>(minterSigner: &signer) {
-        move_to(minterSigner, MinterCap<CoinType> {
-            mintCapOpt: option::none(),
-            burnCapOpt: option::none(),
-        });
-    }
-
-    /**
      * Fill the `MinterCap` resource with a `MintCapability` and a `BurnCapability`.
-     *  Should be called by the super admin.
+     *  Should be called only by the coin admin.
      */
-    public entry fun issueMinterCap<CoinType>(admin: &signer, minter: address) acquires TreasuryCapManager, MinterCap {
-        let adminAddress = signer::address_of(admin);
-        assert!(exists<TreasuryCapManager<CoinType>>(adminAddress), ENOT_SUPER_ADMIN);
-        assert!(exists<MinterCap<CoinType>>(minter), ENOT_REGISTERED);
-        let minterCap = borrow_global_mut<MinterCap<CoinType>>(minter);
+    public entry fun issueMinterCap<CoinType>(coinAdmin: &signer, minterAddress: address) acquires TreasuryCapManager, MinterCap {
+        let coinAdminAddress = signer::address_of(coinAdmin);
+        assert!(exists<TreasuryCapManager<CoinType>>(coinAdminAddress), ENOT_SUPER_ADMIN);
+        assert!(exists<MinterCap<CoinType>>(minterAddress), ENOT_REGISTERED);
+        let minterCap = borrow_global_mut<MinterCap<CoinType>>(minterAddress);
         assert!(option::is_none(&minterCap.mintCapOpt), EALREADY_MINTER);
         assert!(option::is_none(&minterCap.burnCapOpt), EALREADY_MINTER);
 
         let TreasuryCapManager { 
             initialMintCap, initialBurnCap 
-        } = borrow_global<TreasuryCapManager<CoinType>>(adminAddress);
+        } = borrow_global<TreasuryCapManager<CoinType>>(coinAdminAddress);
         let mintCap = *(copy initialMintCap);
         let burnCap = *(copy initialBurnCap);
         option::fill(&mut minterCap.mintCapOpt, mintCap);
@@ -91,14 +60,14 @@ module free_tunnel_aptos::minter_manager {
      * Revoke the `MinterCap` resource.
      *  Should be called by the super admin.
      */
-    public entry fun revokeMinterCap<CoinType>(admin: &signer, minter: address) acquires MinterCap {
-        let adminAddress = signer::address_of(admin);
-        assert!(exists<TreasuryCapManager<CoinType>>(adminAddress), ENOT_SUPER_ADMIN);
-        assert!(exists<MinterCap<CoinType>>(minter), ENOT_REGISTERED);
+    public entry fun revokeMinterCap<CoinType>(coinAdmin: &signer, minterAddress: address) acquires MinterCap {
+        let coinAdminAddress = signer::address_of(coinAdmin);
+        assert!(exists<TreasuryCapManager<CoinType>>(coinAdminAddress), ENOT_SUPER_ADMIN);
+        assert!(exists<MinterCap<CoinType>>(minterAddress), ENOT_REGISTERED);
 
         let MinterCap<CoinType> { 
             mintCapOpt, burnCapOpt 
-        } = move_from<MinterCap<CoinType>>(minter);
+        } = move_from<MinterCap<CoinType>>(minterAddress);
         if (option::is_some(&mintCapOpt)) {
             coin::destroy_mint_cap(option::extract(&mut mintCapOpt));
         };
@@ -111,8 +80,34 @@ module free_tunnel_aptos::minter_manager {
 
 
     // =========================== Minter Functions ===========================
-    public entry fun mint<CoinType>(sender: &signer, to: address, amount: u64) acquires MinterCap {
-        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(sender));
+    /**
+     * Register a `MinterCap` resource for a minter. 
+     *  Should be called by the minter itself.
+     */
+    public entry fun registerMinterCap<CoinType>(minter: &signer) {
+        move_to(minter, MinterCap<CoinType> {
+            mintCapOpt: option::none(),
+            burnCapOpt: option::none(),
+        });
+    }
+
+    /**
+     * Extract the `MintCapability` and `BurnCapability` from the `MinterCap` resource.
+     *  Should be called by a contract.
+     */
+    public fun extractCap<CoinType>(
+        minter: &signer,
+    ): (MintCapability<CoinType>, BurnCapability<CoinType>) acquires MinterCap {
+        let minterCap = borrow_global_mut<MinterCap<CoinType>>(signer::address_of(minter));
+        assert!(option::is_some(&minterCap.mintCapOpt), ENOT_MINTER);
+
+        let mintCap = option::extract(&mut minterCap.mintCapOpt);
+        let burnCap = option::extract(&mut minterCap.burnCapOpt);
+        (mintCap, burnCap)
+    }
+
+    public entry fun mint<CoinType>(minter: &signer, to: address, amount: u64) acquires MinterCap {
+        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(minter));
         assert!(option::is_some(&minterCap.mintCapOpt), ENOT_MINTER);
 
         let coinsToDeposit = coin::mint<CoinType>(
@@ -122,11 +117,25 @@ module free_tunnel_aptos::minter_manager {
         coin::deposit(to, coinsToDeposit);
     }
 
-    public entry fun burn<CoinType>(sender: &signer, from: address, amount: u64) acquires MinterCap {
-        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(sender));
+    public entry fun burn<CoinType>(minter: &signer, from: address, amount: u64) acquires MinterCap {
+        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(minter));
         assert!(option::is_some(&minterCap.burnCapOpt), ENOT_MINTER);
 
         coin::burn_from<CoinType>(from, amount, option::borrow(&minterCap.burnCapOpt));
+    }
+
+
+    // =========================== View functions ===========================
+    public fun isMinter<CoinType>(minterAddress: address): u8 acquires MinterCap {
+        if (!exists<MinterCap<CoinType>>(minterAddress)) {
+            0   // Not registered
+        } else if (!option::is_some(&borrow_global<MinterCap<CoinType>>(minterAddress).mintCapOpt)) {
+            1   // Registered, but not a minter
+        } else if (!option::is_some(&borrow_global<MinterCap<CoinType>>(minterAddress).burnCapOpt)) {
+            2   // Unreachable
+        } else {
+            3   // Is a minter
+        }
     }
 
 
