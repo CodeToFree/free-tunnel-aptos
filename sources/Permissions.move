@@ -1,16 +1,16 @@
-module free_tunnel_aptos::permissions {
+module free_tunnel_rooch::permissions {
 
     // =========================== Packages ===========================
-    use std::aptos_hash;
-    use std::event;
-    use std::signer;
-    use std::table;
     use std::vector;
-    use std::timestamp::now_seconds;
-    use free_tunnel_aptos::utils::{recoverEthAddress, smallU64ToString, smallU64Log10, assertEthAddressList, hexToString};
-    use free_tunnel_aptos::req_helpers::{BRIDGE_CHANNEL, ETH_SIGN_HEADER};
-    friend free_tunnel_aptos::atomic_mint;
-    friend free_tunnel_aptos::atomic_lock;
+    use moveos_std::account;
+    use moveos_std::event;
+    use moveos_std::signer;
+    use moveos_std::table;
+    use moveos_std::timestamp::now_seconds;
+    use free_tunnel_rooch::utils::{recoverEthAddress, smallU64ToString, smallU64Log10, assertEthAddressList, hexToString};
+    use free_tunnel_rooch::req_helpers::{BRIDGE_CHANNEL, ETH_SIGN_HEADER};
+    // friend free_tunnel_rooch::atomic_mint;
+    // friend free_tunnel_rooch::atomic_lock;
 
 
     // =========================== Constants ==========================
@@ -47,7 +47,7 @@ module free_tunnel_aptos::permissions {
     }
 
     public(friend) fun initPermissionsStorage(admin: &signer) {
-        move_to(admin, PermissionsStorage {
+        account::move_resource_to(admin, PermissionsStorage {
             _admin: signer::address_of(admin),
             _proposerIndex: table::new(),
             _proposerList: vector::empty(),
@@ -61,72 +61,72 @@ module free_tunnel_aptos::permissions {
         sender: &signer,
         executors: vector<vector<u8>>,
         threshold: u64,
-    ) acquires PermissionsStorage {
+    ) {
         assertOnlyAdmin(sender);
         initExecutorsInternal(executors, threshold);
     }
 
     #[event]
-    struct AdminTransferred has drop, store {
+    struct AdminTransferred has drop, copy {
         prevAdmin: address,
         newAdmin: address,
     }
 
     #[event]
-    struct ProposerAdded has drop, store {
+    struct ProposerAdded has drop, copy {
         proposer: address,
     }
 
     #[event]
-    struct ProposerRemoved has drop, store {
+    struct ProposerRemoved has drop, copy {
         proposer: address,
     }
 
 
     // =========================== Functions ===========================
-    public(friend) fun assertOnlyAdmin(sender: &signer) acquires PermissionsStorage {
-        let storeP = borrow_global<PermissionsStorage>(@free_tunnel_aptos);
+    public(friend) fun assertOnlyAdmin(sender: &signer) {
+        let storeP = account::borrow_resource<PermissionsStorage>(@free_tunnel_rooch);
         assert!(signer::address_of(sender) == storeP._admin, ENOT_ADMIN);
     }
 
-    public(friend) fun assertOnlyProposer(sender: &signer) acquires PermissionsStorage {
-        let storeP = borrow_global<PermissionsStorage>(@free_tunnel_aptos);
+    public(friend) fun assertOnlyProposer(sender: &signer) {
+        let storeP = account::borrow_resource<PermissionsStorage>(@free_tunnel_rooch);
         assert!(table::contains(
             &storeP._proposerIndex, 
             signer::address_of(sender)
         ), ENOT_PROPOSER);
     }
 
-    public(friend) fun initAdminInternal(admin: address) acquires PermissionsStorage {
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+    public(friend) fun initAdminInternal(admin: address) {
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         storeP._admin = admin;
         event::emit(AdminTransferred { prevAdmin: @0x0, newAdmin: admin });
     }
 
-    public(friend) fun transferAdmin(sender: &signer, newAdmin: address) acquires PermissionsStorage {
+    public(friend) fun transferAdmin(sender: &signer, newAdmin: address) {
         assertOnlyAdmin(sender);
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         let prevAdmin = storeP._admin;
         storeP._admin = newAdmin;
         event::emit(AdminTransferred { prevAdmin, newAdmin });
     }
 
-    public entry fun addProposer(sender: &signer, proposer: address) acquires PermissionsStorage {
+    public entry fun addProposer(sender: &signer, proposer: address) {
         assertOnlyAdmin(sender);
         addProposerInternal(proposer);
     }
 
-    public(friend) fun addProposerInternal(proposer: address) acquires PermissionsStorage {
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+    public(friend) fun addProposerInternal(proposer: address) {
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assert!(!table::contains(&storeP._proposerIndex, proposer), EALREADY_PROPOSER);
         vector::push_back(&mut storeP._proposerList, proposer);
         table::add(&mut storeP._proposerIndex, proposer, vector::length(&storeP._proposerList));
         event::emit(ProposerAdded { proposer });
     }
 
-    public entry fun removeProposer(sender: &signer, proposer: address) acquires PermissionsStorage {
+    public entry fun removeProposer(sender: &signer, proposer: address) {
         assertOnlyAdmin(sender);
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assert!(table::contains(&storeP._proposerIndex, proposer), ENOT_EXISTING_PROPOSER);
         let index = table::remove(&mut storeP._proposerIndex, proposer);
         let len = vector::length(&storeP._proposerList);
@@ -139,8 +139,8 @@ module free_tunnel_aptos::permissions {
         event::emit(ProposerRemoved { proposer });
     }
 
-    public(friend) fun initExecutorsInternal(executors: vector<vector<u8>>, threshold: u64) acquires PermissionsStorage {
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+    public(friend) fun initExecutorsInternal(executors: vector<vector<u8>>, threshold: u64) {
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assertEthAddressList(&executors);
         assert!(vector::length(&storeP._exeActiveSinceForIndex) == 0, EEXECUTORS_ALREADY_INITIALIZED);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
@@ -158,7 +158,7 @@ module free_tunnel_aptos::permissions {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires PermissionsStorage {
+    ) {
         assertEthAddressList(&newExecutors);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
         assert!(
@@ -192,7 +192,7 @@ module free_tunnel_aptos::permissions {
 
         checkMultiSignatures(msg, r, yParityAndS, executors, exeIndex);
 
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         let newIndex = exeIndex + 1;
         if (newIndex == vector::length(&storeP._exeActiveSinceForIndex)) {
             vector::push_back(&mut storeP._executorsForIndex, newExecutors);
@@ -267,7 +267,7 @@ module free_tunnel_aptos::permissions {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires PermissionsStorage {
+    ) {
         assert!(vector::length(&r) == vector::length(&yParityAndS), EARRAY_LENGTH_NOT_EQUAL);
         assert!(vector::length(&r) == vector::length(&executors), EARRAY_LENGTH_NOT_EQUAL);
         checkExecutorsForIndex(&executors, exeIndex);
@@ -278,8 +278,8 @@ module free_tunnel_aptos::permissions {
         };
     }
 
-    fun checkExecutorsForIndex(executors: &vector<vector<u8>>, exeIndex: u64) acquires PermissionsStorage {
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
+    fun checkExecutorsForIndex(executors: &vector<vector<u8>>, exeIndex: u64) {
+        let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assertEthAddressList(executors);
         assert!(vector::length(&storeP._exeActiveSinceForIndex) > exeIndex + 1, ENOT_MEET_THRESHOLD);
         let activeSince = *vector::borrow(&storeP._exeActiveSinceForIndex, exeIndex);
@@ -318,8 +318,7 @@ module free_tunnel_aptos::permissions {
         assert!(vector::length(&r) == 32, EINVALID_LENGTH);
         assert!(vector::length(&yParityAndS) == 32, EINVALID_LENGTH);
         assert!(vector::length(&ethSigner) == 20, EINVALID_LENGTH);
-        let digest = aptos_hash::keccak256(msg);
-        let recoveredEthAddr = recoverEthAddress(digest, r, yParityAndS);
+        let recoveredEthAddr = recoverEthAddress(msg, r, yParityAndS);
         assert!(recoveredEthAddr == ethSigner, EINVALID_SIGNATURE);
     }
 

@@ -11,7 +11,7 @@ module free_tunnel_rooch::req_helpers {
     use moveos_std::type_info::{Self, TypeInfo};
     use rooch_framework::coin::{Self, CoinInfo};
     use free_tunnel_rooch::utils::{smallU64ToString, hexToString};
-    // friend free_tunnel_rooch::permissions;
+    friend free_tunnel_rooch::permissions;
     // friend free_tunnel_rooch::atomic_mint;
     // friend free_tunnel_rooch::atomic_lock;
     
