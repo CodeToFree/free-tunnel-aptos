@@ -1,17 +1,19 @@
-module free_tunnel_aptos::req_helpers {
+module free_tunnel_rooch::req_helpers {
 
     // =========================== Packages ===========================
-    use std::event;
-    use std::table;
-    use std::math64;
+    use std::u64;
     use std::vector;
-    use std::timestamp::now_seconds;
-    use std::type_info::{Self, TypeInfo};
-    use aptos_framework::coin;
-    use free_tunnel_aptos::utils::{smallU64ToString, hexToString};
-    friend free_tunnel_aptos::permissions;
-    friend free_tunnel_aptos::atomic_mint;
-    friend free_tunnel_aptos::atomic_lock;
+    use moveos_std::account;
+    use moveos_std::event;
+    use moveos_std::table;
+    use moveos_std::object::{Self, Object};
+    use moveos_std::timestamp::now_seconds;
+    use moveos_std::type_info::{Self, TypeInfo};
+    use rooch_framework::coin::{Self, CoinInfo};
+    use free_tunnel_rooch::utils::{smallU64ToString, hexToString};
+    // friend free_tunnel_rooch::permissions;
+    // friend free_tunnel_rooch::atomic_mint;
+    // friend free_tunnel_rooch::atomic_lock;
     
 
     // =========================== Constants ==========================
@@ -42,29 +44,29 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun initReqHelpersStorage(admin: &signer) {
-        move_to(admin, ReqHelpersStorage {
+        account::move_resource_to(admin, ReqHelpersStorage {
             tokens: table::new(),
             tokenDecimals: table::new(),
         })
     }
 
     #[event]
-    struct TokenAdded has drop, store {
+    struct TokenAdded has drop, copy {
         tokenIndex: u8,
         tokenType: TypeInfo,
     }
     
     #[event]
-    struct TokenRemoved has drop, store {
+    struct TokenRemoved has drop, copy {
         tokenIndex: u8,
         tokenType: TypeInfo,
     }
 
 
     // =========================== Functions ===========================
-    public(friend) fun addTokenInternal<CoinType>(tokenIndex: u8) acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-        let decimals = coin::decimals<CoinType>();
+    public(friend) fun addTokenInternal<CoinType: key>(tokenIndex: u8, coinInfoObj: &Object<CoinInfo<CoinType>>) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
+        let decimals = coin::decimals<CoinType>(object::borrow(coinInfoObj));
 
         assert!(
             !table::contains(&storeR.tokens, tokenIndex), 
@@ -78,8 +80,8 @@ module free_tunnel_aptos::req_helpers {
         event::emit(TokenAdded { tokenIndex, tokenType });
     }
 
-    public(friend) fun removeTokenInternal(tokenIndex: u8) acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun removeTokenInternal(tokenIndex: u8) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
         let tokenType = table::remove(&mut storeR.tokens, tokenIndex);
@@ -93,7 +95,7 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun createdTimeFrom(reqId: &vector<u8>): u64 {
-        let time = *vector::borrow(reqId, 1) as u64;
+        let time = (*vector::borrow(reqId, 1) as u64);
         let i = 2;
         while (i < 6) {
             time = (time << 8) + (*vector::borrow(reqId, i) as u64);
@@ -117,23 +119,23 @@ module free_tunnel_aptos::req_helpers {
         *vector::borrow(reqId, 7)
     }
 
-    public(friend) fun checkTokenType<CoinType>(tokenIndex: u8) acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun checkTokenType<CoinType>(tokenIndex: u8) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         let tokenTypeExpected = *table::borrow(&storeR.tokens, tokenIndex);
         let tokenTypeActual = type_info::type_of<CoinType>();
         assert!(tokenTypeExpected == tokenTypeActual, ETOKEN_TYPE_MISMATCH);
     }
 
-    public(friend) fun tokenIndexFrom<CoinType>(reqId: &vector<u8>): u8 acquires ReqHelpersStorage {
+    public(friend) fun tokenIndexFrom<CoinType>(reqId: &vector<u8>): u8 {
         let tokenIndex = decodeTokenIndex(reqId);
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
         checkTokenType<CoinType>(tokenIndex);
         tokenIndex
     }
 
     fun decodeAmount(reqId: &vector<u8>): u64 {
-        let amount = *vector::borrow(reqId, 8) as u64;
+        let amount = (*vector::borrow(reqId, 8) as u64);
         let i = 9;
         while (i < 16) {
             amount = (amount << 8) + (*vector::borrow(reqId, i) as u64);
@@ -143,15 +145,15 @@ module free_tunnel_aptos::req_helpers {
         amount
     }
 
-    public(friend) fun amountFrom<CoinType>(reqId: &vector<u8>): u64 acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun amountFrom<CoinType>(reqId: &vector<u8>): u64 {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         let amount = decodeAmount(reqId);
         let tokenIndex = decodeTokenIndex(reqId);
         let decimals = *table::borrow(&storeR.tokenDecimals, tokenIndex);
         if (decimals > 6) {
-            amount = amount * math64::pow(10, (decimals as u64) - 6);
+            amount = amount * u64::pow(10, decimals - 6);
         } else if (decimals < 6) {
-            amount = amount / math64::pow(10, 6 - (decimals as u64));
+            amount = amount / u64::pow(10, 6 - decimals);
         };
         amount
     }

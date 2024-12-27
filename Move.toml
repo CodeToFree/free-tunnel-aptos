@@ -1,17 +1,17 @@
 [package]
-name = "free_tunnel_aptos"
+name = "free_tunnel_rooch"
 version = "1.0.0"
 authors = []
 
 [addresses]
 std = "0x1"
-free_tunnel_aptos = "0x33dd"
+free_tunnel_rooch = "0x33dd"
 
 [dev-addresses]
 
-[dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-framework.git"
-rev = "mainnet"
-subdir = "aptos-framework"
+[dependencies]
+MoveStdlib = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/move-stdlib", rev = "main" }
+MoveosStdlib = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/moveos-stdlib", rev = "main" }
+RoochFramework = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/rooch-framework", rev = "main" }
 
 [dev-dependencies]
