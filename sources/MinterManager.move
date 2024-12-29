@@ -1,176 +1,188 @@
-module free_tunnel_aptos::minter_manager {
+module free_tunnel_rooch::minter_manager {
 
-    use std::signer;
-    use std::option::{Self, Option};
-    use aptos_framework::coin::{Self, MintCapability, BurnCapability};
-    use aptos_framework::managed_coin;
+    // =========================== Packages ===========================
+    use moveos_std::event;
+    use moveos_std::signer;
+    use moveos_std::table;
+    use moveos_std::object::{Self, Object, ObjectID};
+    use rooch_framework::coin::{Self, CoinInfo};
+    use rooch_framework::account_coin_store;
 
-    const ENOT_SUPER_ADMIN: u64 = 120;
-    const ENOT_REGISTERED: u64 = 121;
-    const EALREADY_MINTER: u64 = 122;
-    const ENOT_MINTER: u64 = 123;
 
-    struct TreasuryCapManager<phantom CoinType> has key {
-        initialMintCap: MintCapability<CoinType>,
-        initialBurnCap: BurnCapability<CoinType>,
+    // =========================== Constants ==========================
+    const ENOT_ADMIN: u64 = 120;
+    const ETREASURY_CAP_MANAGER_DESTROYED: u64 = 121;
+    const EMINTER_REVOKED: u64 = 122;
+
+
+    // ============================ Storage ===========================
+    struct TreasuryCapManager<phantom CoinType: key + store> has key {
+        admin: address,
+        coinInfoObj: Object<CoinInfo<CoinType>>,
+        revokedMinters: table::Table<ObjectID, bool>,
     }
 
-    struct MinterCap<phantom CoinType> has key {
-        mintCapOpt: Option<MintCapability<CoinType>>,
-        burnCapOpt: Option<BurnCapability<CoinType>>,
+    struct MinterCap<phantom CoinType: key + store> has key, store {
+        managerId: ObjectID,
+    }
+
+    #[event]
+    struct AdminTransferred has drop, copy {
+        prevAdmin: address,
+        newAdmin: address,
+    }
+
+    #[event]
+    struct TreasuryCapManagerSetup has drop, copy {
+        admin: address,
+        treasuryCapManagerId: ObjectID,
+    }
+
+    #[event]
+    struct TreasuryCapManagerDestroyed has drop, copy {
+        treasuryCapManagerId: ObjectID,
+    }
+
+    #[event]
+    struct MinterCapIssued has drop, copy {
+        recipient: address,
+        minterCapId: ObjectID,
+    }
+
+    #[event]
+    struct MinterCapRevoked has drop, copy {
+        minterCapId: ObjectID,
+    }
+
+    #[event]
+    struct MinterCapDestroyed has drop, copy {
+        minterCapId: ObjectID,
     }
 
     
     // =========================== Coin Admin Functions ===========================
-    /**
-     * Set up `TreasuryCapabilities` resource from `managed_coin::Capabilities`.
-     *  This operation is irreversible!
-     */
-    public entry fun setupTreasuryFromCapabilities<CoinType>(coinAdmin: &signer) {
-        let (burnCap, freezeCap, mintCap) = managed_coin::remove_caps<CoinType>(coinAdmin);
-        move_to(coinAdmin, TreasuryCapManager<CoinType> {
-            initialMintCap: mintCap,
-            initialBurnCap: burnCap,
+    public entry fun transferAdmin<CoinType: key + store>(
+        coinAdmin: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        newAdmin: address,
+    ) {
+        let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
+        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
+        treasuryCapManager.admin = newAdmin;
+        event::emit(AdminTransferred { prevAdmin: signer::address_of(coinAdmin), newAdmin });
+    }
+
+    public entry fun setupTreasuryCapManager<CoinType: key + store>(
+        coinAdmin: &signer,
+        coinInfoObj: Object<CoinInfo<CoinType>>,
+    ) {
+        let treasuryCapManager = TreasuryCapManager<CoinType> {
+            admin: signer::address_of(coinAdmin),
+            coinInfoObj,
+            revokedMinters: table::new(),
+        };
+        let treasuryCapManagerObject = object::new(treasuryCapManager);
+        let treasuryCapManagerId = object::id(&treasuryCapManagerObject);
+        object::to_shared(treasuryCapManagerObject);
+        event::emit(TreasuryCapManagerSetup { admin: signer::address_of(coinAdmin), treasuryCapManagerId });
+    }
+
+    public entry fun destroyTreasuryCapManager<CoinType: key + store>(
+        coinAdmin: &signer,
+        treasuryCapManagerObj: Object<TreasuryCapManager<CoinType>>,
+    ) {
+        let treasuryCapManagerId = object::id(&treasuryCapManagerObj);
+        let treasuryCapManager = object::remove(treasuryCapManagerObj);
+        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
+        let TreasuryCapManager<CoinType> {
+            admin: _, coinInfoObj, revokedMinters,
+        } = treasuryCapManager;
+
+        table::drop(revokedMinters);
+        object::transfer(coinInfoObj, signer::address_of(coinAdmin));
+        event::emit(TreasuryCapManagerDestroyed { treasuryCapManagerId });
+    }
+
+    public entry fun issueMinterCap<CoinType: key + store>(
+        coinAdmin: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        recipient: address,
+    ) {
+        let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
+        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
+        let minterCapObj = object::new(MinterCap<CoinType> {
+            managerId: object::id(treasuryCapManagerObj),
         });
-        coin::destroy_freeze_cap(freezeCap);
+        let minterCapId = object::id(&minterCapObj);
+        object::transfer(minterCapObj, recipient);
+        event::emit(MinterCapIssued { recipient, minterCapId });
     }
 
-    /**
-     * Fill the `MinterCap` resource with a `MintCapability` and a `BurnCapability`.
-     *  Should be called only by the coin admin.
-     */
-    public entry fun issueMinterCap<CoinType>(coinAdmin: &signer, minterAddress: address) acquires TreasuryCapManager, MinterCap {
-        let coinAdminAddress = signer::address_of(coinAdmin);
-        assert!(exists<TreasuryCapManager<CoinType>>(coinAdminAddress), ENOT_SUPER_ADMIN);
-        assert!(exists<MinterCap<CoinType>>(minterAddress), ENOT_REGISTERED);
-        let minterCap = borrow_global_mut<MinterCap<CoinType>>(minterAddress);
-        assert!(option::is_none(&minterCap.mintCapOpt), EALREADY_MINTER);
-        assert!(option::is_none(&minterCap.burnCapOpt), EALREADY_MINTER);
-
-        let TreasuryCapManager { 
-            initialMintCap, initialBurnCap 
-        } = borrow_global<TreasuryCapManager<CoinType>>(coinAdminAddress);
-        let mintCap = *(copy initialMintCap);
-        let burnCap = *(copy initialBurnCap);
-        option::fill(&mut minterCap.mintCapOpt, mintCap);
-        option::fill(&mut minterCap.burnCapOpt, burnCap);
-    }
-
-    /**
-     * Revoke the `MinterCap` resource.
-     *  Should be called by the super admin.
-     */
-    public entry fun revokeMinterCap<CoinType>(coinAdmin: &signer, minterAddress: address) acquires MinterCap {
-        let coinAdminAddress = signer::address_of(coinAdmin);
-        assert!(exists<TreasuryCapManager<CoinType>>(coinAdminAddress), ENOT_SUPER_ADMIN);
-        assert!(exists<MinterCap<CoinType>>(minterAddress), ENOT_REGISTERED);
-
-        let MinterCap<CoinType> { 
-            mintCapOpt, burnCapOpt 
-        } = move_from<MinterCap<CoinType>>(minterAddress);
-        if (option::is_some(&mintCapOpt)) {
-            coin::destroy_mint_cap(option::extract(&mut mintCapOpt));
-        };
-        if (option::is_some(&burnCapOpt)) {
-            coin::destroy_burn_cap(option::extract(&mut burnCapOpt));
-        };
-        option::destroy_none(mintCapOpt);
-        option::destroy_none(burnCapOpt);
+    public entry fun revokeMinterCap<CoinType: key + store>(
+        coinAdmin: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        minterCapId: ObjectID,
+    ) {
+        let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
+        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
+        table::add(&mut treasuryCapManager.revokedMinters, minterCapId, true);
+        event::emit(MinterCapRevoked { minterCapId });
     }
 
 
     // =========================== Minter Functions ===========================
-    /**
-     * Register a `MinterCap` resource for a minter. 
-     *  Should be called by the minter itself.
-     */
-    public entry fun registerMinterCap<CoinType>(minter: &signer) {
-        move_to(minter, MinterCap<CoinType> {
-            mintCapOpt: option::none(),
-            burnCapOpt: option::none(),
-        });
-    }
-
-    /**
-     * Extract the `MintCapability` and `BurnCapability` from the `MinterCap` resource.
-     *  Should be called by a contract.
-     */
-    public fun extractCap<CoinType>(
-        minter: &signer,
-    ): (MintCapability<CoinType>, BurnCapability<CoinType>) acquires MinterCap {
-        let minterCap = borrow_global_mut<MinterCap<CoinType>>(signer::address_of(minter));
-        assert!(option::is_some(&minterCap.mintCapOpt), ENOT_MINTER);
-
-        let mintCap = option::extract(&mut minterCap.mintCapOpt);
-        let burnCap = option::extract(&mut minterCap.burnCapOpt);
-        (mintCap, burnCap)
-    }
-
-    public entry fun mint<CoinType>(minter: &signer, to: address, amount: u64) acquires MinterCap {
-        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(minter));
-        assert!(option::is_some(&minterCap.mintCapOpt), ENOT_MINTER);
-
-        let coinsToDeposit = coin::mint<CoinType>(
-            amount, 
-            option::borrow(&minterCap.mintCapOpt)
+    public entry fun mint<CoinType: key + store>(
+        _minter: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        minterCapObj: &mut Object<MinterCap<CoinType>>,
+        amount: u256,
+        recipient: address,
+    ) {
+        let treasuryCapManagerId = object::id(treasuryCapManagerObj);
+        let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
+        let minterCapId = object::id(minterCapObj);
+        let minterCap = object::borrow(minterCapObj);
+        assert!(
+            !table::contains(&treasuryCapManager.revokedMinters, minterCapId),
+            EMINTER_REVOKED,
         );
-        coin::deposit(to, coinsToDeposit);
+        assert!(
+            minterCap.managerId == treasuryCapManagerId,
+            ETREASURY_CAP_MANAGER_DESTROYED,
+        );
+        let coinToDeposit = coin::mint(&mut treasuryCapManager.coinInfoObj, amount);
+        account_coin_store::deposit(recipient, coinToDeposit);
     }
 
-    public entry fun burn<CoinType>(minter: &signer, from: address, amount: u64) acquires MinterCap {
-        let minterCap = borrow_global<MinterCap<CoinType>>(signer::address_of(minter));
-        assert!(option::is_some(&minterCap.burnCapOpt), ENOT_MINTER);
-
-        coin::burn_from<CoinType>(from, amount, option::borrow(&minterCap.burnCapOpt));
+    public entry fun burn<CoinType: key + store>(
+        burner: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        minterCapObj: &mut Object<MinterCap<CoinType>>,
+        amount: u256,
+    ) {
+        let treasuryCapManagerId = object::id(treasuryCapManagerObj);
+        let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
+        let minterCapId = object::id(minterCapObj);
+        let minterCap = object::borrow(minterCapObj);
+        assert!(
+            !table::contains(&treasuryCapManager.revokedMinters, minterCapId),
+            EMINTER_REVOKED,
+        );
+        assert!(
+            minterCap.managerId == treasuryCapManagerId,
+            ETREASURY_CAP_MANAGER_DESTROYED,
+        );
+        let coinToBurn = account_coin_store::withdraw(burner, amount);
+        coin::burn(&mut treasuryCapManager.coinInfoObj, coinToBurn);
     }
 
-
-    // =========================== View functions ===========================
-    public fun isMinter<CoinType>(minterAddress: address): u8 acquires MinterCap {
-        if (!exists<MinterCap<CoinType>>(minterAddress)) {
-            0   // Not registered
-        } else if (!option::is_some(&borrow_global<MinterCap<CoinType>>(minterAddress).mintCapOpt)) {
-            1   // Registered, but not a minter
-        } else if (!option::is_some(&borrow_global<MinterCap<CoinType>>(minterAddress).burnCapOpt)) {
-            2   // Unreachable
-        } else {
-            3   // Is a minter
-        }
-    }
-
-
-    // =========================== Test ===========================
-    #[test_only]
-    struct FakeMoney {}
-
-    #[test(admin = @0x33dd, minter = @0x22ee, to = @0x44cc)]
-    public entry fun testMint(admin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
-        managed_coin::initialize<FakeMoney>(admin, b"FakeMoney", b"FM", 18, true);
-        setupTreasuryFromCapabilities<FakeMoney>(admin);
-        registerMinterCap<FakeMoney>(minter);
-        issueMinterCap<FakeMoney>(admin, signer::address_of(minter));
-
-        let toAddress = signer::address_of(to);
-        aptos_framework::account::create_account_for_test(toAddress);
-        coin::register<FakeMoney>(to);
-        mint<FakeMoney>(minter, signer::address_of(to), 1_000_000);
-        burn<FakeMoney>(minter, signer::address_of(to), 1_000_000);
-    }
-
-    #[test(admin = @0x33dd, minter = @0x22ee, to = @0x44cc)]
-    #[expected_failure]
-    public entry fun testMintFailure(admin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
-        managed_coin::initialize<FakeMoney>(admin, b"FakeMoney", b"FM", 18, true);
-        setupTreasuryFromCapabilities<FakeMoney>(admin);
-        registerMinterCap<FakeMoney>(minter);
-        issueMinterCap<FakeMoney>(admin, signer::address_of(minter));
-        revokeMinterCap<FakeMoney>(admin, signer::address_of(minter));
-
-        let toAddress = signer::address_of(to);
-        aptos_framework::account::create_account_for_test(toAddress);
-        coin::register<FakeMoney>(to);
-        mint<FakeMoney>(minter, signer::address_of(to), 1_000_000);
-        burn<FakeMoney>(minter, signer::address_of(to), 1_000_000);
+    public entry fun destroyMinterCap<CoinType: key + store>(
+        _minter: &signer,
+        minterCapObj: Object<MinterCap<CoinType>>,
+    ) {
+        let minterCapId = object::id(&minterCapObj);
+        let MinterCap<CoinType> { managerId: _ } = object::remove(minterCapObj);
+        event::emit(MinterCapDestroyed { minterCapId });
     }
 
 }
