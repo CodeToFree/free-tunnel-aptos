@@ -13,7 +13,7 @@ module free_tunnel_rooch::req_helpers {
     use free_tunnel_rooch::utils::{smallU64ToString, hexToString};
     friend free_tunnel_rooch::permissions;
     // friend free_tunnel_rooch::atomic_mint;
-    // friend free_tunnel_rooch::atomic_lock;
+    friend free_tunnel_rooch::atomic_lock;
     
 
     // =========================== Constants ==========================
@@ -145,7 +145,7 @@ module free_tunnel_rooch::req_helpers {
         amount
     }
 
-    public(friend) fun amountFrom<CoinType>(reqId: &vector<u8>): u64 {
+    public(friend) fun amountFrom<CoinType>(reqId: &vector<u8>): u256 {
         let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         let amount = decodeAmount(reqId);
         let tokenIndex = decodeTokenIndex(reqId);
@@ -155,7 +155,7 @@ module free_tunnel_rooch::req_helpers {
         } else if (decimals < 6) {
             amount = amount / u64::pow(10, 6 - decimals);
         };
-        amount
+        (amount as u256)
     }
 
     public(friend) fun msgFromReqSigningMessage(reqId: &vector<u8>): vector<u8> {

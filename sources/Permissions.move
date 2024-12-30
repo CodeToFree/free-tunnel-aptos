@@ -10,7 +10,7 @@ module free_tunnel_rooch::permissions {
     use free_tunnel_rooch::utils::{recoverEthAddress, smallU64ToString, smallU64Log10, assertEthAddressList, hexToString};
     use free_tunnel_rooch::req_helpers::{BRIDGE_CHANNEL, ETH_SIGN_HEADER};
     // friend free_tunnel_rooch::atomic_mint;
-    // friend free_tunnel_rooch::atomic_lock;
+    friend free_tunnel_rooch::atomic_lock;
 
 
     // =========================== Constants ==========================
