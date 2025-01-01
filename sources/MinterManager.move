@@ -5,7 +5,7 @@ module free_tunnel_rooch::minter_manager {
     use moveos_std::signer;
     use moveos_std::table;
     use moveos_std::object::{Self, Object, ObjectID};
-    use rooch_framework::coin::{Self, CoinInfo};
+    use rooch_framework::coin::{Self, Coin, CoinInfo};
     use rooch_framework::account_coin_store;
 
 
@@ -154,11 +154,21 @@ module free_tunnel_rooch::minter_manager {
         account_coin_store::deposit(recipient, coinToDeposit);
     }
 
-    public entry fun burn<CoinType: key + store>(
+    public entry fun burnFromSigner<CoinType: key + store>(
         burner: &signer,
         treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
         minterCapObj: &mut Object<MinterCap<CoinType>>,
         amount: u256,
+    ) {
+        let coinToBurn = account_coin_store::withdraw(burner, amount);
+        burn(burner, treasuryCapManagerObj, minterCapObj, coinToBurn);
+    }
+
+    public fun burn<CoinType: key + store>(
+        _sender: &signer,
+        treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
+        minterCapObj: &mut Object<MinterCap<CoinType>>,
+        coinToBurn: Coin<CoinType>,
     ) {
         let treasuryCapManagerId = object::id(treasuryCapManagerObj);
         let treasuryCapManager = object::borrow_mut(treasuryCapManagerObj);
@@ -172,7 +182,6 @@ module free_tunnel_rooch::minter_manager {
             minterCap.managerId == treasuryCapManagerId,
             ETREASURY_CAP_MANAGER_DESTROYED,
         );
-        let coinToBurn = account_coin_store::withdraw(burner, amount);
         coin::burn(&mut treasuryCapManager.coinInfoObj, coinToBurn);
     }
 

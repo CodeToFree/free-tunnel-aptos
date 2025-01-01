@@ -36,7 +36,7 @@ module free_tunnel_rooch::atomic_lock {
         lockedBalanceOf: table::Table<u8, u256>,
     }
 
-    struct StoreForCoin<phantom CoinType: key> has key {
+    struct StoreForCoin<phantom CoinType: key + store> has key {
         lockedCoins: Object<CoinStore<CoinType>>,
     }
 
