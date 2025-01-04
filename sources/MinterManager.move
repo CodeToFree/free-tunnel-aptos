@@ -143,34 +143,43 @@ module free_tunnel_aptos::minter_manager {
     #[test_only]
     struct FakeMoney {}
 
-    #[test(admin = @0x33dd, minter = @0x22ee, to = @0x44cc)]
-    public entry fun testMint(admin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
-        managed_coin::initialize<FakeMoney>(admin, b"FakeMoney", b"FM", 18, true);
-        setupTreasuryFromCapabilities<FakeMoney>(admin);
-        registerMinterCap<FakeMoney>(minter);
-        issueMinterCap<FakeMoney>(admin, signer::address_of(minter));
+    #[test(coinAdmin = @free_tunnel_aptos)]
+    fun testIssueCoin(coinAdmin: &signer) {
+        managed_coin::initialize<FakeMoney>(
+            coinAdmin,
+            b"FakeMoney",
+            b"FM",
+            18,      // decimal
+            true     // monitor supply
+        );
+        aptos_framework::account::create_account_for_test(signer::address_of(coinAdmin));
+        coin::register<FakeMoney>(coinAdmin);
+    }
 
-        let toAddress = signer::address_of(to);
-        aptos_framework::account::create_account_for_test(toAddress);
+    #[test(coinAdmin = @free_tunnel_aptos)]
+    public fun testSetupTreasury(coinAdmin: &signer) {
+        testIssueCoin(coinAdmin);
+        setupTreasuryFromCapabilities<FakeMoney>(coinAdmin);
+    }
+
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee, to = @0x44cc)]
+    fun testMint(coinAdmin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
+        testSetupTreasury(coinAdmin);
+        registerMinterCap<FakeMoney>(minter);
+        issueMinterCap<FakeMoney>(coinAdmin, signer::address_of(minter));
+
+        aptos_framework::account::create_account_for_test(signer::address_of(to));
         coin::register<FakeMoney>(to);
         mint<FakeMoney>(minter, signer::address_of(to), 1_000_000);
         burn<FakeMoney>(minter, signer::address_of(to), 1_000_000);
     }
 
-    #[test(admin = @0x33dd, minter = @0x22ee, to = @0x44cc)]
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee, to = @0x44cc)]
     #[expected_failure]
-    public entry fun testMintFailure(admin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
-        managed_coin::initialize<FakeMoney>(admin, b"FakeMoney", b"FM", 18, true);
-        setupTreasuryFromCapabilities<FakeMoney>(admin);
-        registerMinterCap<FakeMoney>(minter);
-        issueMinterCap<FakeMoney>(admin, signer::address_of(minter));
-        revokeMinterCap<FakeMoney>(admin, signer::address_of(minter));
-
-        let toAddress = signer::address_of(to);
-        aptos_framework::account::create_account_for_test(toAddress);
-        coin::register<FakeMoney>(to);
+    fun testMintFailure(coinAdmin: &signer, minter: &signer, to: &signer) acquires TreasuryCapManager, MinterCap {
+        testMint(coinAdmin, minter, to);
+        revokeMinterCap<FakeMoney>(coinAdmin, signer::address_of(minter));
         mint<FakeMoney>(minter, signer::address_of(to), 1_000_000);
-        burn<FakeMoney>(minter, signer::address_of(to), 1_000_000);
     }
 
 }

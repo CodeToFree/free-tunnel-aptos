@@ -322,4 +322,44 @@ module free_tunnel_aptos::atomic_mint {
         event::emit(TokenBurnCancelled{ reqId, proposer: proposerAddress });
     }
 
+
+    // =========================== Test ===========================
+    #[test_only]
+    use free_tunnel_aptos::minter_manager::FakeMoney;
+
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    fun testAddToken(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+        // initialize
+        init_module(coinAdmin);
+
+        // setup TreasuryCapManager
+        minter_manager::testSetupTreasury(coinAdmin);
+        minter_manager::registerMinterCap<FakeMoney>(minter);
+        minter_manager::issueMinterCap<FakeMoney>(coinAdmin, signer::address_of(minter));
+
+        // add token
+        addToken<FakeMoney>(coinAdmin, 15);
+        transferMinterCap<FakeMoney>(minter, 15);
+    }
+
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    fun testRemoveToken(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+        testAddToken(coinAdmin, minter);
+        removeToken<FakeMoney>(coinAdmin, 15);
+    }
+
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    #[expected_failure]
+    fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+        testAddToken(coinAdmin, minter);
+        addToken<FakeMoney>(coinAdmin, 15);
+    }
+
+    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    #[expected_failure]
+    fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+        testRemoveToken(coinAdmin, minter);
+        removeToken<FakeMoney>(coinAdmin, 15);
+    }
+
 }
