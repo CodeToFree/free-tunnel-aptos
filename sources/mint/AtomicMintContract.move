@@ -81,12 +81,6 @@ module free_tunnel_rooch::atomic_mint {
     }
 
     fun init(admin: &signer) {
-        let adminAddress = signer::address_of(admin);
-        assert!(adminAddress == DEPLOYER, ENOT_DEPLOYER);
-        
-        permissions::initPermissionsStorage(admin);
-        req_helpers::initReqHelpersStorage(admin);
-
         let atomicMintGeneralStorage = AtomicMintGeneralStorage {
             proposedMint: table::new(),
             proposedBurn: table::new(),

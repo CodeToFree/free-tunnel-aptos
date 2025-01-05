@@ -43,6 +43,10 @@ module free_tunnel_rooch::req_helpers {
         tokenDecimals: table::Table<u8, u8>,
     }
 
+    fun init(admin: &signer) {
+        initReqHelpersStorage(admin);
+    }
+
     public(friend) fun initReqHelpersStorage(admin: &signer) {
         account::move_resource_to(admin, ReqHelpersStorage {
             tokens: table::new(),

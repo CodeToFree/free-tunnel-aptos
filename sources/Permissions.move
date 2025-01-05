@@ -46,6 +46,10 @@ module free_tunnel_rooch::permissions {
         _exeActiveSinceForIndex: vector<u64>,
     }
 
+    fun init(admin: &signer) {
+        initPermissionsStorage(admin);
+    }
+
     public(friend) fun initPermissionsStorage(admin: &signer) {
         account::move_resource_to(admin, PermissionsStorage {
             _admin: signer::address_of(admin),

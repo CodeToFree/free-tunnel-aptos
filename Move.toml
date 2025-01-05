@@ -5,7 +5,7 @@ authors = []
 
 [addresses]
 std = "0x1"
-free_tunnel_rooch = "0x33dd"
+free_tunnel_rooch = "0xa057ec0bff69d3e9a761337f8d6d9a742e93be316ba3062747af2734c96f2c15"
 
 [dev-addresses]
 

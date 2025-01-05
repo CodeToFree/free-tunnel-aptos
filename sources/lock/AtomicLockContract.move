@@ -77,12 +77,6 @@ module free_tunnel_rooch::atomic_lock {
     }
 
     fun init(admin: &signer) {
-        let adminAddress = signer::address_of(admin);
-        assert!(adminAddress == DEPLOYER, ENOT_DEPLOYER);
-
-        permissions::initPermissionsStorage(admin);
-        req_helpers::initReqHelpersStorage(admin);
-
         let atomicLockGeneralStorage = AtomicLockGeneralStorage {
             proposedLock: table::new(),
             proposedUnlock: table::new(),
