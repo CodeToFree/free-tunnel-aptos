@@ -70,13 +70,7 @@ module free_tunnel_aptos::atomic_lock {
         recipient: address,
     }
 
-    fun init_module (admin: &signer) {
-        let adminAddress = signer::address_of(admin);
-        assert!(adminAddress == DEPLOYER, ENOT_DEPLOYER);
-
-        permissions::initPermissionsStorage(admin);
-        req_helpers::initReqHelpersStorage(admin);
-
+    fun init_module(admin: &signer) {
         let atomicLockGeneralStorage = AtomicLockGeneralStorage {
             proposedLock: table::new(),
             proposedUnlock: table::new(),

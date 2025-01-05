@@ -46,6 +46,10 @@ module free_tunnel_aptos::permissions {
         _exeActiveSinceForIndex: vector<u64>,
     }
 
+    fun init_module(admin: &signer) {
+        initPermissionsStorage(admin);
+    }
+
     public(friend) fun initPermissionsStorage(admin: &signer) {
         move_to(admin, PermissionsStorage {
             _admin: signer::address_of(admin),

@@ -41,6 +41,10 @@ module free_tunnel_aptos::req_helpers {
         tokenDecimals: table::Table<u8, u8>,
     }
 
+    fun init_module(admin: &signer) {
+        initReqHelpersStorage(admin);
+    }
+
     public(friend) fun initReqHelpersStorage(admin: &signer) {
         move_to(admin, ReqHelpersStorage {
             tokens: table::new(),
