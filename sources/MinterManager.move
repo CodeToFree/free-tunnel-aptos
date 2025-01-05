@@ -194,4 +194,56 @@ module free_tunnel_rooch::minter_manager {
         event::emit(MinterCapDestroyed { minterCapId });
     }
 
+
+    // =========================== Test ===========================
+
+    #[test_only]
+    use std::debug;
+
+    #[test_only]
+    use std::option;
+
+    #[test_only]
+    use std::string::utf8;
+
+    #[test_only]
+    use moveos_std::tx_context;
+
+    #[test_only]
+    struct FakeMoney has key, store {}
+
+    #[test(coinAdmin = @free_tunnel_rooch)]
+    fun testIssueCoin(coinAdmin: &signer): ObjectID {
+        rooch_framework::genesis::init_for_test();
+        let coinInfoObj = coin::register_extend<FakeMoney>(
+            utf8(b"FakeMoney"),
+            utf8(b"FM"),
+            option::none(),
+            18,      // decimal
+        );
+        let coinInfoObjId = object::id(&coinInfoObj);
+        object::transfer(coinInfoObj, signer::address_of(coinAdmin));
+        coinInfoObjId
+    }
+
+    #[test(coinAdmin = @free_tunnel_rooch, to = @0x44cc)]
+    fun testNormalMint(coinAdmin: &signer, to: &signer) {
+        let coinInfoObjId = testIssueCoin(coinAdmin);
+        let coinInfoObjMut = object::borrow_mut_object<CoinInfo<FakeMoney>>(
+            coinAdmin, coinInfoObjId
+        );
+        let coinToDeposit = coin::mint(coinInfoObjMut, 1000000);
+        account_coin_store::deposit(signer::address_of(to), coinToDeposit);
+
+    }
+
+    #[test(coinAdmin = @free_tunnel_rooch)]
+    fun testSetupTreasury(coinAdmin: &signer) {
+        let coinInfoObjId = testIssueCoin(coinAdmin);
+        let coinInfoObj = object::take_object(coinAdmin, coinInfoObjId);
+        setupTreasuryCapManager<FakeMoney>(coinAdmin, coinInfoObj);
+
+        debug::print(&object::address_to_object_id(tx_context::fresh_address()));
+    }
+
 }
