@@ -87,22 +87,6 @@ module free_tunnel_rooch::minter_manager {
         event::emit(TreasuryCapManagerSetup { admin: signer::address_of(coinAdmin), treasuryCapManagerId });
     }
 
-    public entry fun destroyTreasuryCapManager<CoinType: key + store>(
-        coinAdmin: &signer,
-        treasuryCapManagerObj: Object<TreasuryCapManager<CoinType>>,
-    ) {
-        let treasuryCapManagerId = object::id(&treasuryCapManagerObj);
-        let treasuryCapManager = object::remove(treasuryCapManagerObj);
-        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
-        let TreasuryCapManager<CoinType> {
-            admin: _, coinInfoObj, revokedMinters,
-        } = treasuryCapManager;
-
-        table::drop(revokedMinters);
-        object::transfer(coinInfoObj, signer::address_of(coinAdmin));
-        event::emit(TreasuryCapManagerDestroyed { treasuryCapManagerId });
-    }
-
     public entry fun issueMinterCap<CoinType: key + store>(
         coinAdmin: &signer,
         treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
@@ -198,16 +182,10 @@ module free_tunnel_rooch::minter_manager {
     // =========================== Test ===========================
 
     #[test_only]
-    use std::debug;
-
-    #[test_only]
     use std::option;
 
     #[test_only]
     use std::string::utf8;
-
-    #[test_only]
-    use moveos_std::tx_context;
 
     #[test_only]
     struct FakeMoney has key, store {}
@@ -242,8 +220,6 @@ module free_tunnel_rooch::minter_manager {
         let coinInfoObjId = testIssueCoin(coinAdmin);
         let coinInfoObj = object::take_object(coinAdmin, coinInfoObjId);
         setupTreasuryCapManager<FakeMoney>(coinAdmin, coinInfoObj);
-
-        debug::print(&object::address_to_object_id(tx_context::fresh_address()));
     }
 
 }
