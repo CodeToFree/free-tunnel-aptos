@@ -10,7 +10,6 @@ module free_tunnel_rooch::atomic_mint {
     use moveos_std::timestamp::now_seconds;
     
     use rooch_framework::account_coin_store;
-    use rooch_framework::coin::CoinInfo;
     use rooch_framework::coin_store::{Self, CoinStore};
 
     use free_tunnel_rooch::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
@@ -93,10 +92,10 @@ module free_tunnel_rooch::atomic_mint {
     public entry fun addToken<CoinType: key + store>(
         admin: &signer,
         tokenIndex: u8,
-        coinInfoObj: &Object<CoinInfo<CoinType>>
+        decimals: u8,
     ) {
         permissions::assertOnlyAdmin(admin);
-        req_helpers::addTokenInternal<CoinType>(tokenIndex, coinInfoObj);
+        req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
         let storeForCoinAndMinterCap = StoreForCoinAndMinterCap<CoinType> {
             burningCoins: coin_store::create_coin_store<CoinType>(),
             minterCapOptObj: option::none(),

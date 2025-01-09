@@ -6,10 +6,8 @@ module free_tunnel_rooch::req_helpers {
     use moveos_std::account;
     use moveos_std::event;
     use moveos_std::table;
-    use moveos_std::object::{Self, Object};
     use moveos_std::timestamp::now_seconds;
     use moveos_std::type_info::{Self, TypeInfo};
-    use rooch_framework::coin::{Self, CoinInfo};
     use free_tunnel_rooch::utils::{smallU64ToString, hexToString};
     friend free_tunnel_rooch::permissions;
     friend free_tunnel_rooch::atomic_mint;
@@ -68,9 +66,8 @@ module free_tunnel_rooch::req_helpers {
 
 
     // =========================== Functions ===========================
-    public(friend) fun addTokenInternal<CoinType: key>(tokenIndex: u8, coinInfoObj: &Object<CoinInfo<CoinType>>) {
+    public(friend) fun addTokenInternal<CoinType: key>(tokenIndex: u8, decimals: u8) {
         let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
-        let decimals = coin::decimals<CoinType>(object::borrow(coinInfoObj));
 
         assert!(
             !table::contains(&storeR.tokens, tokenIndex), 

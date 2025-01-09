@@ -54,3 +54,8 @@ rooch move run --function $ADMIN::minter_manager::mint \
 
 # 8. destroyTreasuryCapManager
 ## cannot destroy TreasuryCapManager, because it's a shared object
+
+# 9. add token
+rooch move run --function $ADMIN::atomic_mint::addToken \
+    --args 36u8 --args object_id:$COIN_INFO \
+    --type-args $COIN
