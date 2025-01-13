@@ -87,6 +87,23 @@ module free_tunnel_rooch::minter_manager {
         event::emit(TreasuryCapManagerSetup { admin: signer::address_of(coinAdmin), treasuryCapManagerId });
     }
 
+    public entry fun destroyTreasuryCapManager<CoinType: key + store>(
+        coinAdmin: &signer,
+        treasuryCapManagerId: ObjectID,
+    ) {
+        let treasuryCapManager = object::remove(
+            object::take_object_extend<TreasuryCapManager<CoinType>>(treasuryCapManagerId)
+        );
+        assert!(signer::address_of(coinAdmin) == treasuryCapManager.admin, ENOT_ADMIN);
+        let TreasuryCapManager<CoinType> {
+            admin: _, coinInfoObj, revokedMinters,
+        } = treasuryCapManager;
+
+        table::drop(revokedMinters);
+        object::transfer(coinInfoObj, signer::address_of(coinAdmin));
+        event::emit(TreasuryCapManagerDestroyed { treasuryCapManagerId });
+    }
+
     public entry fun issueMinterCap<CoinType: key + store>(
         coinAdmin: &signer,
         treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
