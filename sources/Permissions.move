@@ -136,7 +136,7 @@ module free_tunnel_aptos::permissions {
         let len = vector::length(&storeP._proposerList);
         if (index < len) {
             let lastProposer = *vector::borrow(&storeP._proposerList, len - 1);
-            *vector::borrow_mut(&mut storeP._proposerList, index) = lastProposer;
+            *vector::borrow_mut(&mut storeP._proposerList, index - 1) = lastProposer;
             *table::borrow_mut(&mut storeP._proposerIndex, lastProposer) = index;
         };
         vector::pop_back(&mut storeP._proposerList);
