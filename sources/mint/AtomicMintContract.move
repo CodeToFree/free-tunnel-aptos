@@ -96,11 +96,13 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
-        let coinStorage = CoinStorage<CoinType> {
-            burningCoins: coin_store::create_coin_store<CoinType>(),
-            minterCap: option::none(),
+        if (!account::exists_resource<CoinStorage<CoinType>>(@free_tunnel_rooch)) { 
+            let coinStorage = CoinStorage<CoinType> {
+                burningCoins: coin_store::create_coin_store<CoinType>(),
+                minterCap: option::none(),
+            };
+            account::move_resource_to(admin, coinStorage);
         };
-        account::move_resource_to(admin, coinStorage);
     }
 
 
@@ -122,16 +124,11 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let CoinStorage { burningCoins: burningCoinStoreObj, minterCap } = 
-            account::move_resource_from<CoinStorage<CoinType>>(@free_tunnel_rooch);
-        let burningCoins = coin_store::remove_coin_store<CoinType>(burningCoinStoreObj);
-        account_coin_store::deposit(signer::address_of(admin), burningCoins);
-
-        if (option::is_some(&minterCap)) {
-            let minterCapObj = option::extract(&mut minterCap);
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        if (option::is_some(&coinStorage.minterCap)) {
+            let minterCapObj = option::extract(&mut coinStorage.minterCap);
             minter_manager::destroyMinterCap(admin, minterCapObj);
         };
-        option::destroy_none(minterCap);
     }
 
 

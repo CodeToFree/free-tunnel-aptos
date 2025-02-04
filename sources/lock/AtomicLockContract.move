@@ -93,12 +93,14 @@ module free_tunnel_rooch::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
-        let coinStorage = CoinStorage<CoinType> {
-            lockedCoins: coin_store::create_coin_store<CoinType>()
-        };
-        account::move_resource_to(admin, coinStorage);
+        if (!account::exists_resource<CoinStorage<CoinType>>(@free_tunnel_rooch)) {
+            let coinStorage = CoinStorage<CoinType> {
+                lockedCoins: coin_store::create_coin_store<CoinType>()
+            };
+            account::move_resource_to(admin, coinStorage);
+        }
     }
-
+    
 
     public entry fun removeToken<CoinType: key + store>(
         admin: &signer,
@@ -106,11 +108,6 @@ module free_tunnel_rooch::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let CoinStorage { 
-            lockedCoins: lockedCoinsStoreObject
-        } = account::move_resource_from<CoinStorage<CoinType>>(@free_tunnel_rooch);
-        let lockedCoins = coin_store::remove_coin_store<CoinType>(lockedCoinsStoreObject);
-        account_coin_store::deposit(signer::address_of(admin), lockedCoins);
     }
 
 
