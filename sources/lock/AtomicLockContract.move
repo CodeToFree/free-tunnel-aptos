@@ -115,7 +115,7 @@ module free_tunnel_aptos::atomic_lock {
         req_helpers::checkCreatedTimeFrom(&reqId);
         let action = req_helpers::actionFrom(&reqId);
         assert!(action & 0x0f == 1, ENOT_LOCK_MINT);
-        assert!(table::contains(&storeA.proposedLock, reqId), EINVALID_REQ_ID);
+        assert!(!table::contains(&storeA.proposedLock, reqId), EINVALID_REQ_ID);
 
         let proposerAddress = signer::address_of(proposer);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_PROPOSER);
