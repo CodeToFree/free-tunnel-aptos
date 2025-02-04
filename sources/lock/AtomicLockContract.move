@@ -29,13 +29,13 @@ module free_tunnel_rooch::atomic_lock {
 
 
     // ============================ Storage ===========================
-    struct AtomicLockGeneralStorage has key, store {
+    struct AtomicLockStorage has key, store {
         proposedLock: table::Table<vector<u8>, address>,
         proposedUnlock: table::Table<vector<u8>, address>,
         lockedBalanceOf: table::Table<u8, u256>,
     }
 
-    struct StoreForCoin<phantom CoinType: key + store> has key {
+    struct CoinStorage<phantom CoinType: key + store> has key {
         lockedCoins: Object<CoinStore<CoinType>>,
     }
 
@@ -76,12 +76,12 @@ module free_tunnel_rooch::atomic_lock {
     }
 
     fun init(admin: &signer) {
-        let atomicLockGeneralStorage = AtomicLockGeneralStorage {
+        let atomicLockStorage = AtomicLockStorage {
             proposedLock: table::new(),
             proposedUnlock: table::new(),
             lockedBalanceOf: table::new(),
         };
-        account::move_resource_to(admin, atomicLockGeneralStorage);
+        account::move_resource_to(admin, atomicLockStorage);
     }
 
 
@@ -93,10 +93,10 @@ module free_tunnel_rooch::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
-        let storeForCoin = StoreForCoin<CoinType> {
+        let coinStorage = CoinStorage<CoinType> {
             lockedCoins: coin_store::create_coin_store<CoinType>()
         };
-        account::move_resource_to(admin, storeForCoin);
+        account::move_resource_to(admin, coinStorage);
     }
 
 
@@ -106,9 +106,9 @@ module free_tunnel_rooch::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let StoreForCoin { 
+        let CoinStorage { 
             lockedCoins: lockedCoinsStoreObject
-        } = account::move_resource_from<StoreForCoin<CoinType>>(@free_tunnel_rooch);
+        } = account::move_resource_from<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let lockedCoins = coin_store::remove_coin_store<CoinType>(lockedCoinsStoreObject);
         account_coin_store::deposit(signer::address_of(admin), lockedCoins);
     }
@@ -118,7 +118,7 @@ module free_tunnel_rooch::atomic_lock {
         proposer: &signer,
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
         let action = req_helpers::actionFrom(&reqId);
@@ -132,9 +132,9 @@ module free_tunnel_rooch::atomic_lock {
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         table::add(&mut storeA.proposedLock, reqId, proposerAddress);
 
-        let storeForCoin = account::borrow_mut_resource<StoreForCoin<CoinType>>(@free_tunnel_rooch);
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let coinToLock = account_coin_store::withdraw<CoinType>(proposer, amount);
-        coin_store::deposit(&mut storeForCoin.lockedCoins, coinToLock);
+        coin_store::deposit(&mut coinStorage.lockedCoins, coinToLock);
         event::emit(TokenLockProposed{ reqId, proposer: proposerAddress });
     }
     
@@ -147,7 +147,7 @@ module free_tunnel_rooch::atomic_lock {
         executors: vector<vector<u8>>,
         exeIndex: u64,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -175,7 +175,7 @@ module free_tunnel_rooch::atomic_lock {
         _sender: &signer,
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -187,8 +187,8 @@ module free_tunnel_rooch::atomic_lock {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         
-        let storeForCoin = account::borrow_mut_resource<StoreForCoin<CoinType>>(@free_tunnel_rooch);
-        let coinInside = &mut storeForCoin.lockedCoins;
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        let coinInside = &mut coinStorage.lockedCoins;
         let coinCancelled = coin_store::withdraw(coinInside, amount);
 
         account_coin_store::deposit(proposerAddress, coinCancelled);
@@ -201,7 +201,7 @@ module free_tunnel_rooch::atomic_lock {
         reqId: vector<u8>,
         recipient: address,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
@@ -226,7 +226,7 @@ module free_tunnel_rooch::atomic_lock {
         executors: vector<vector<u8>>,
         exeIndex: u64,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -240,8 +240,8 @@ module free_tunnel_rooch::atomic_lock {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let storeForCoin = account::borrow_mut_resource<StoreForCoin<CoinType>>(@free_tunnel_rooch);
-        let coinInside = &mut storeForCoin.lockedCoins;
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        let coinInside = &mut coinStorage.lockedCoins;
         let coinUnlocked = coin_store::withdraw(coinInside, amount);
 
         account_coin_store::deposit(recipient, coinUnlocked);
@@ -253,7 +253,7 @@ module free_tunnel_rooch::atomic_lock {
         _sender: &signer,
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicLockGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicLockStorage>(@free_tunnel_rooch);
         let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(

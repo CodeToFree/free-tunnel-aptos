@@ -33,14 +33,14 @@ module free_tunnel_rooch::atomic_mint {
 
 
     // ============================ Storage ===========================
-    struct AtomicMintGeneralStorage has key {
+    struct AtomicMintStorage has key {
         proposedMint: table::Table<vector<u8>, address>,
         proposedBurn: table::Table<vector<u8>, address>,
     }
 
-    struct StoreForCoinAndMinterCap<phantom CoinType: key + store> has key {
+    struct CoinStorage<phantom CoinType: key + store> has key {
         burningCoins: Object<CoinStore<CoinType>>,
-        minterCapOptObj: Option<Object<MinterCap<CoinType>>>,
+        minterCap: Option<Object<MinterCap<CoinType>>>,
     }
 
     #[event]
@@ -80,11 +80,11 @@ module free_tunnel_rooch::atomic_mint {
     }
 
     fun init(admin: &signer) {
-        let atomicMintGeneralStorage = AtomicMintGeneralStorage {
+        let atomicMintStorage = AtomicMintStorage {
             proposedMint: table::new(),
             proposedBurn: table::new(),
         };
-        account::move_resource_to(admin, atomicMintGeneralStorage);
+        account::move_resource_to(admin, atomicMintStorage);
     }
 
 
@@ -96,11 +96,11 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
-        let storeForCoinAndMinterCap = StoreForCoinAndMinterCap<CoinType> {
+        let coinStorage = CoinStorage<CoinType> {
             burningCoins: coin_store::create_coin_store<CoinType>(),
-            minterCapOptObj: option::none(),
+            minterCap: option::none(),
         };
-        account::move_resource_to(admin, storeForCoinAndMinterCap);
+        account::move_resource_to(admin, coinStorage);
     }
 
 
@@ -110,9 +110,9 @@ module free_tunnel_rooch::atomic_mint {
         minterCapObj: Object<MinterCap<CoinType>>,
     ) {
         req_helpers::checkTokenType<CoinType>(tokenIndex);
-        let storeForCoinAndMinterCap = 
-            account::borrow_mut_resource<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
-        option::fill(&mut storeForCoinAndMinterCap.minterCapOptObj, minterCapObj);
+        let coinStorage = 
+            account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        option::fill(&mut coinStorage.minterCap, minterCapObj);
     }
 
 
@@ -122,16 +122,16 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let StoreForCoinAndMinterCap { burningCoins: burningCoinStoreObj, minterCapOptObj } = 
-            account::move_resource_from<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
+        let CoinStorage { burningCoins: burningCoinStoreObj, minterCap } = 
+            account::move_resource_from<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let burningCoins = coin_store::remove_coin_store<CoinType>(burningCoinStoreObj);
         account_coin_store::deposit(signer::address_of(admin), burningCoins);
 
-        if (option::is_some(&minterCapOptObj)) {
-            let minterCapObj = option::extract(&mut minterCapOptObj);
+        if (option::is_some(&minterCap)) {
+            let minterCapObj = option::extract(&mut minterCap);
             minter_manager::destroyMinterCap(admin, minterCapObj);
         };
-        option::destroy_none(minterCapOptObj);
+        option::destroy_none(minterCap);
     }
 
 
@@ -164,7 +164,7 @@ module free_tunnel_rooch::atomic_mint {
         recipient: address,
     ) {
         req_helpers::checkCreatedTimeFrom(&reqId);
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
         assert!(!table::contains(&storeA.proposedMint, reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
@@ -185,7 +185,7 @@ module free_tunnel_rooch::atomic_mint {
         exeIndex: u64,
         treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
         let recipient = *table::borrow(&storeA.proposedMint, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -199,9 +199,9 @@ module free_tunnel_rooch::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let storeForCoinAndMinterCap = 
-            account::borrow_mut_resource<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
-        let minterCapObj = option::borrow_mut(&mut storeForCoinAndMinterCap.minterCapOptObj);
+        let coinStorage = 
+            account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        let minterCapObj = option::borrow_mut(&mut coinStorage.minterCap);
         minter_manager::mint<CoinType>(
             sender, treasuryCapManagerObj, 
             minterCapObj, amount, recipient
@@ -214,7 +214,7 @@ module free_tunnel_rooch::atomic_mint {
         _sender: &signer,
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
         let recipient = *table::borrow(&storeA.proposedMint, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -251,7 +251,7 @@ module free_tunnel_rooch::atomic_mint {
         proposer: &signer,
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
         req_helpers::checkCreatedTimeFrom(&reqId);
         assert!(!table::contains(&storeA.proposedBurn, reqId), EINVALID_REQ_ID);
 
@@ -262,10 +262,10 @@ module free_tunnel_rooch::atomic_mint {
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         table::add(&mut storeA.proposedBurn, reqId, proposerAddress);
         
-        let storeForCoinAndMinterCap = 
-            account::borrow_mut_resource<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
+        let coinStorage = 
+            account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let coinToBurn = account_coin_store::withdraw(proposer, amount);
-        coin_store::deposit(&mut storeForCoinAndMinterCap.burningCoins, coinToBurn);
+        coin_store::deposit(&mut coinStorage.burningCoins, coinToBurn);
         event::emit(TokenBurnProposed{ reqId, proposer: proposerAddress });
     }
 
@@ -279,8 +279,8 @@ module free_tunnel_rooch::atomic_mint {
         exeIndex: u64,
         treasuryCapManagerObj: &mut Object<TreasuryCapManager<CoinType>>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
-        let storeForCoinAndMinterCap = account::borrow_mut_resource<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
 
         let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -295,10 +295,10 @@ module free_tunnel_rooch::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let coinInside = &mut storeForCoinAndMinterCap.burningCoins;
+        let coinInside = &mut coinStorage.burningCoins;
         let coinBurned = coin_store::withdraw(coinInside, amount);
 
-        let minterCapObj = option::borrow_mut(&mut storeForCoinAndMinterCap.minterCapOptObj);
+        let minterCapObj = option::borrow_mut(&mut coinStorage.minterCap);
         minter_manager::burn<CoinType>(
             _sender, treasuryCapManagerObj, minterCapObj, coinBurned
         );
@@ -309,8 +309,8 @@ module free_tunnel_rooch::atomic_mint {
     public entry fun cancelBurn<CoinType: key + store>(
         reqId: vector<u8>,
     ) {
-        let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
-        let storeForCoinAndMinterCap = account::borrow_mut_resource<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_rooch);
+        let storeA = account::borrow_mut_resource<AtomicMintStorage>(@free_tunnel_rooch);
+        let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
 
         let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -324,7 +324,7 @@ module free_tunnel_rooch::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let coinInside = &mut storeForCoinAndMinterCap.burningCoins;
+        let coinInside = &mut coinStorage.burningCoins;
         let coinCancelled = coin_store::withdraw(coinInside, amount);
 
         account_coin_store::deposit(proposerAddress, coinCancelled);
