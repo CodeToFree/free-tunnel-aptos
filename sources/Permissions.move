@@ -86,6 +86,14 @@ module free_tunnel_rooch::permissions {
         proposer: address,
     }
 
+    #[event]
+    struct ExecutorsUpdated has drop, copy {
+        executors: vector<vector<u8>>,
+        threshold: u64,
+        activeSince: u64,
+        exeIndex: u64,
+    }
+
 
     // =========================== Functions ===========================
     public(friend) fun assertOnlyAdmin(sender: &signer) {
@@ -136,7 +144,7 @@ module free_tunnel_rooch::permissions {
         let len = vector::length(&storeP._proposerList);
         if (index < len) {
             let lastProposer = *vector::borrow(&storeP._proposerList, len - 1);
-            *vector::borrow_mut(&mut storeP._proposerList, index) = lastProposer;
+            *vector::borrow_mut(&mut storeP._proposerList, index - 1) = lastProposer;
             *table::borrow_mut(&mut storeP._proposerIndex, lastProposer) = index;
         };
         vector::pop_back(&mut storeP._proposerList);
@@ -146,11 +154,14 @@ module free_tunnel_rooch::permissions {
     public(friend) fun initExecutorsInternal(executors: vector<vector<u8>>, threshold: u64) {
         let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assertEthAddressList(&executors);
+        assert!(threshold <= vector::length(&executors), ENOT_MEET_THRESHOLD);
         assert!(vector::length(&storeP._exeActiveSinceForIndex) == 0, EEXECUTORS_ALREADY_INITIALIZED);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
+        checkExecutorsNotDuplicated(executors);
         vector::push_back(&mut storeP._executorsForIndex, executors);
         vector::push_back(&mut storeP._exeThresholdForIndex, threshold);
         vector::push_back(&mut storeP._exeActiveSinceForIndex, 1);
+        event::emit(ExecutorsUpdated { executors, threshold, activeSince: 1, exeIndex: 0 });
     }
 
     public entry fun updateExecutors(
@@ -165,6 +176,7 @@ module free_tunnel_rooch::permissions {
     ) {
         assertEthAddressList(&newExecutors);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
+        assert!(threshold <= vector::length(&newExecutors), ENOT_MEET_THRESHOLD);
         assert!(
             activeSince > now_seconds() + 36 * 3600,  // 36 hours
             EACTIVE_SINCE_SHOULD_AFTER_36H,
@@ -173,6 +185,7 @@ module free_tunnel_rooch::permissions {
             activeSince < now_seconds() + 120 * 3600,  // 5 days
             EACTIVE_SINCE_SHOULD_WITHIN_5D,
         );
+        checkExecutorsNotDuplicated(newExecutors);
 
         let msg = vector::empty<u8>();
         vector::append(&mut msg, ETH_SIGN_HEADER());
@@ -218,7 +231,8 @@ module free_tunnel_rooch::permissions {
             *vector::borrow_mut(&mut storeP._executorsForIndex, newIndex) = newExecutors;
             *vector::borrow_mut(&mut storeP._exeThresholdForIndex, newIndex) = threshold;
             *vector::borrow_mut(&mut storeP._exeActiveSinceForIndex, newIndex) = activeSince;
-        }
+        };
+        event::emit(ExecutorsUpdated { executors: newExecutors, threshold, activeSince, exeIndex: newIndex });
     }
 
 
@@ -282,10 +296,26 @@ module free_tunnel_rooch::permissions {
         };
     }
 
+    fun checkExecutorsNotDuplicated(executors: vector<vector<u8>>) {
+        let i = 0;
+        while (i < vector::length(&executors)) {
+            let executor = *vector::borrow(&executors, i);
+            let j = 0;
+            while (j < i) {
+                assert!(*vector::borrow(&executors, j) != executor, EDUPLICATED_EXECUTORS);
+                j = j + 1;
+            };
+            i = i + 1;
+        };
+    }
+
     fun checkExecutorsForIndex(executors: &vector<vector<u8>>, exeIndex: u64) {
         let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assertEthAddressList(executors);
-        assert!(vector::length(&storeP._exeActiveSinceForIndex) > exeIndex + 1, ENOT_MEET_THRESHOLD);
+        assert!(
+            vector::length(executors) >= *vector::borrow(&storeP._exeThresholdForIndex, exeIndex), 
+            ENOT_MEET_THRESHOLD
+        );
         let activeSince = *vector::borrow(&storeP._exeActiveSinceForIndex, exeIndex);
         assert!(activeSince < now_seconds(), EEXECUTORS_NOT_YET_ACTIVE);
 
