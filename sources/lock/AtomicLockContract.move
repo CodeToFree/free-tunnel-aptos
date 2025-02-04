@@ -87,21 +87,21 @@ module free_tunnel_aptos::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        let coinStorage = CoinStorage<CoinType> {
-            lockedCoins: coin::zero<CoinType>(),
-        };
-        move_to(admin, coinStorage);
+        if (!exists<CoinStorage<CoinType>>(@free_tunnel_aptos)) {
+            let coinStorage = CoinStorage<CoinType> {
+                lockedCoins: coin::zero<CoinType>(),
+            };
+            move_to(admin, coinStorage);
+        }
     }
-
+    
 
     public entry fun removeToken<CoinType>(
         admin: &signer,
         tokenIndex: u8,
-    ) acquires CoinStorage {
+    ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let CoinStorage { lockedCoins } = move_from<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        coin::deposit(signer::address_of(admin), lockedCoins);
     }
 
 

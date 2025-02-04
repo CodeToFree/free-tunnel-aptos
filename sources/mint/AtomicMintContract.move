@@ -88,12 +88,14 @@ module free_tunnel_aptos::atomic_mint {
     public entry fun addToken<CoinType>(admin: &signer, tokenIndex: u8) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        let coinStorage = CoinStorage<CoinType> {
-            burningCoins: coin::zero<CoinType>(),
-            mintCapOpt: option::none(),
-            burnCapOpt: option::none(),
-        };
-        move_to(admin, coinStorage);
+        if (!exists<CoinStorage<CoinType>>(@free_tunnel_aptos)) {
+            let coinStorage = CoinStorage<CoinType> {
+                burningCoins: coin::zero<CoinType>(),
+                mintCapOpt: option::none(),
+                burnCapOpt: option::none(),
+            };
+            move_to(admin, coinStorage);
+        }
     }
 
 
@@ -116,17 +118,14 @@ module free_tunnel_aptos::atomic_mint {
     ) acquires CoinStorage {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let CoinStorage { burningCoins, mintCapOpt, burnCapOpt } = move_from<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        coin::deposit(signer::address_of(admin), burningCoins);
 
-        if (option::is_some(&mintCapOpt)) {
-            let mintCap = option::extract(&mut mintCapOpt);
-            let burnCap = option::extract(&mut burnCapOpt);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+        if (option::is_some(&coinStorage.mintCapOpt)) {
+            let mintCap = option::extract(&mut coinStorage.mintCapOpt);
+            let burnCap = option::extract(&mut coinStorage.burnCapOpt);
             coin::destroy_mint_cap(mintCap);
             coin::destroy_burn_cap(burnCap);
-        };
-        option::destroy_none(mintCapOpt);
-        option::destroy_none(burnCapOpt);
+        }
     }
 
 
@@ -325,6 +324,8 @@ module free_tunnel_aptos::atomic_mint {
     fun testAddToken(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
         // initialize
         init_module(coinAdmin);
+        req_helpers::initReqHelpersStorage(coinAdmin);
+        permissions::initPermissionsStorage(coinAdmin);
 
         // setup TreasuryCapManager
         minter_manager::testSetupTreasury(coinAdmin);
