@@ -28,12 +28,12 @@ module free_tunnel_aptos::atomic_mint {
 
 
     // ============================ Storage ===========================
-    struct AtomicMintGeneralStorage has key {
+    struct AtomicMintStorage has key {
         proposedMint: table::Table<vector<u8>, address>,
         proposedBurn: table::Table<vector<u8>, address>,
     }
 
-    struct StoreForCoinAndMinterCap<phantom CoinType> has key {
+    struct CoinStorage<phantom CoinType> has key {
         burningCoins: Coin<CoinType>,
         mintCapOpt: Option<MintCapability<CoinType>>,
         burnCapOpt: Option<BurnCapability<CoinType>>,
@@ -76,11 +76,11 @@ module free_tunnel_aptos::atomic_mint {
     }
 
     fun init_module(admin: &signer) {
-        let atomicMintGeneralStorage = AtomicMintGeneralStorage {
+        let atomicMintStorage = AtomicMintStorage {
             proposedMint: table::new(),
             proposedBurn: table::new(),
         };
-        move_to(admin, atomicMintGeneralStorage);
+        move_to(admin, atomicMintStorage);
     }
 
 
@@ -88,35 +88,35 @@ module free_tunnel_aptos::atomic_mint {
     public entry fun addToken<CoinType>(admin: &signer, tokenIndex: u8) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        let storeForCoinAndMinterCap = StoreForCoinAndMinterCap<CoinType> {
+        let coinStorage = CoinStorage<CoinType> {
             burningCoins: coin::zero<CoinType>(),
             mintCapOpt: option::none(),
             burnCapOpt: option::none(),
         };
-        move_to(admin, storeForCoinAndMinterCap);
+        move_to(admin, coinStorage);
     }
 
 
     public entry fun transferMinterCap<CoinType>(
         minter: &signer,
         tokenIndex: u8,
-    ) acquires StoreForCoinAndMinterCap {
+    ) acquires CoinStorage {
         req_helpers::checkTokenType<CoinType>(tokenIndex);
 
         let (mintCap, burnCap) = minter_manager::extractCap<CoinType>(minter);
-        let storeForCoinAndMinterCap = borrow_global_mut<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos);
-        option::fill(&mut storeForCoinAndMinterCap.mintCapOpt, mintCap);
-        option::fill(&mut storeForCoinAndMinterCap.burnCapOpt, burnCap);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+        option::fill(&mut coinStorage.mintCapOpt, mintCap);
+        option::fill(&mut coinStorage.burnCapOpt, burnCap);
     }
 
 
     public entry fun removeToken<CoinType>(
         admin: &signer,
         tokenIndex: u8,
-    ) acquires StoreForCoinAndMinterCap {
+    ) acquires CoinStorage {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let StoreForCoinAndMinterCap { burningCoins, mintCapOpt, burnCapOpt } = move_from<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos);
+        let CoinStorage { burningCoins, mintCapOpt, burnCapOpt } = move_from<CoinStorage<CoinType>>(@free_tunnel_aptos);
         coin::deposit(signer::address_of(admin), burningCoins);
 
         if (option::is_some(&mintCapOpt)) {
@@ -134,7 +134,7 @@ module free_tunnel_aptos::atomic_mint {
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
-    ) acquires AtomicMintGeneralStorage {
+    ) acquires AtomicMintStorage {
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 1, ENOT_LOCK_MINT);
@@ -145,7 +145,7 @@ module free_tunnel_aptos::atomic_mint {
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
-    ) acquires AtomicMintGeneralStorage {
+    ) acquires AtomicMintStorage {
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 3, ENOT_BURN_MINT);
@@ -156,9 +156,9 @@ module free_tunnel_aptos::atomic_mint {
     fun proposeMintPrivate<CoinType>(
         reqId: vector<u8>,
         recipient: address,
-    ) acquires AtomicMintGeneralStorage {
+    ) acquires AtomicMintStorage {
         req_helpers::checkCreatedTimeFrom(&reqId);
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         assert!(!table::contains(&storeA.proposedMint, reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
@@ -177,8 +177,8 @@ module free_tunnel_aptos::atomic_mint {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         let recipient = *table::borrow(&storeA.proposedMint, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -192,7 +192,7 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let mintCap = option::borrow(&borrow_global<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos).mintCapOpt);
+        let mintCap = option::borrow(&borrow_global<CoinStorage<CoinType>>(@free_tunnel_aptos).mintCapOpt);
         let coinsToDeposit = coin::mint<CoinType>(amount, mintCap);
         coin::deposit(recipient, coinsToDeposit);
         event::emit(TokenMintExecuted{ reqId, recipient });
@@ -202,8 +202,8 @@ module free_tunnel_aptos::atomic_mint {
     public entry fun cancelMint<CoinType>(
         _sender: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintGeneralStorage {
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         let recipient = *table::borrow(&storeA.proposedMint, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -219,7 +219,7 @@ module free_tunnel_aptos::atomic_mint {
     public entry fun proposeBurn<CoinType>(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
+    ) acquires AtomicMintStorage, CoinStorage {
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 2, ENOT_BURN_UNLOCK);
         proposeBurnPrivate<CoinType>(proposer, reqId);
@@ -229,7 +229,7 @@ module free_tunnel_aptos::atomic_mint {
     public entry fun proposeBurnForMint<CoinType>(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
+    ) acquires AtomicMintStorage, CoinStorage {
         req_helpers::assertFromChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 3, ENOT_BURN_MINT);
         proposeBurnPrivate<CoinType>(proposer, reqId);
@@ -239,8 +239,8 @@ module free_tunnel_aptos::atomic_mint {
     fun proposeBurnPrivate<CoinType>(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         req_helpers::checkCreatedTimeFrom(&reqId);
         assert!(!table::contains(&storeA.proposedBurn, reqId), EINVALID_REQ_ID);
 
@@ -251,9 +251,9 @@ module free_tunnel_aptos::atomic_mint {
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         table::add(&mut storeA.proposedBurn, reqId, proposerAddress);
         
-        let storeForCoinAndMinterCap = borrow_global_mut<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
         let coinToBurn = coin::withdraw<CoinType>(proposer, amount);
-        coin::merge(&mut storeForCoinAndMinterCap.burningCoins, coinToBurn);
+        coin::merge(&mut coinStorage.burningCoins, coinToBurn);
         event::emit(TokenBurnProposed{ reqId, proposer: proposerAddress });
     }
 
@@ -265,9 +265,9 @@ module free_tunnel_aptos::atomic_mint {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
-        let storeForCoinAndMinterCap = borrow_global_mut<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
 
         let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -282,10 +282,10 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let coinInside = &mut storeForCoinAndMinterCap.burningCoins;
+        let coinInside = &mut coinStorage.burningCoins;
         let coinBurned = coin::extract(coinInside, amount);
 
-        let burnCap = option::borrow(&storeForCoinAndMinterCap.burnCapOpt);
+        let burnCap = option::borrow(&coinStorage.burnCapOpt);
         coin::burn<CoinType>(coinBurned, burnCap);
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }
@@ -293,9 +293,9 @@ module free_tunnel_aptos::atomic_mint {
 
     public entry fun cancelBurn<CoinType>(
         reqId: vector<u8>,
-    ) acquires AtomicMintGeneralStorage, StoreForCoinAndMinterCap {
-        let storeA = borrow_global_mut<AtomicMintGeneralStorage>(@free_tunnel_aptos);
-        let storeForCoinAndMinterCap = borrow_global_mut<StoreForCoinAndMinterCap<CoinType>>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
 
         let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -309,7 +309,7 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let coinInside = &mut storeForCoinAndMinterCap.burningCoins;
+        let coinInside = &mut coinStorage.burningCoins;
         let coinCancelled = coin::extract(coinInside, amount);
 
         coin::deposit(proposerAddress, coinCancelled);
@@ -322,7 +322,7 @@ module free_tunnel_aptos::atomic_mint {
     use free_tunnel_aptos::minter_manager::FakeMoney;
 
     #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    fun testAddToken(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+    fun testAddToken(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
         // initialize
         init_module(coinAdmin);
 
@@ -337,21 +337,21 @@ module free_tunnel_aptos::atomic_mint {
     }
 
     #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    fun testRemoveToken(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+    fun testRemoveToken(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
         testAddToken(coinAdmin, minter);
         removeToken<FakeMoney>(coinAdmin, 15);
     }
 
     #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
     #[expected_failure]
-    fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+    fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
         testAddToken(coinAdmin, minter);
         addToken<FakeMoney>(coinAdmin, 15);
     }
 
     #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
     #[expected_failure]
-    fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
+    fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
         testRemoveToken(coinAdmin, minter);
         removeToken<FakeMoney>(coinAdmin, 15);
     }

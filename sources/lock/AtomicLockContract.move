@@ -24,13 +24,13 @@ module free_tunnel_aptos::atomic_lock {
 
 
     // ============================ Storage ===========================
-    struct AtomicLockGeneralStorage has key, store {
+    struct AtomicLockStorage has key, store {
         proposedLock: table::Table<vector<u8>, address>,
         proposedUnlock: table::Table<vector<u8>, address>,
         lockedBalanceOf: table::Table<u8, u64>,
     }
 
-    struct StoreForCoin<phantom CoinType> has key {
+    struct CoinStorage<phantom CoinType> has key {
         lockedCoins: Coin<CoinType>,
     }
 
@@ -71,12 +71,12 @@ module free_tunnel_aptos::atomic_lock {
     }
 
     fun init_module(admin: &signer) {
-        let atomicLockGeneralStorage = AtomicLockGeneralStorage {
+        let atomicLockStorage = AtomicLockStorage {
             proposedLock: table::new(),
             proposedUnlock: table::new(),
             lockedBalanceOf: table::new(),
         };
-        move_to(admin, atomicLockGeneralStorage);
+        move_to(admin, atomicLockStorage);
     }
 
 
@@ -87,20 +87,20 @@ module free_tunnel_aptos::atomic_lock {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        let storeForCoin = StoreForCoin<CoinType> {
+        let coinStorage = CoinStorage<CoinType> {
             lockedCoins: coin::zero<CoinType>(),
         };
-        move_to(admin, storeForCoin);
+        move_to(admin, coinStorage);
     }
 
 
     public entry fun removeToken<CoinType>(
         admin: &signer,
         tokenIndex: u8,
-    ) acquires StoreForCoin {
+    ) acquires CoinStorage {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-        let StoreForCoin { lockedCoins } = move_from<StoreForCoin<CoinType>>(@free_tunnel_aptos);
+        let CoinStorage { lockedCoins } = move_from<CoinStorage<CoinType>>(@free_tunnel_aptos);
         coin::deposit(signer::address_of(admin), lockedCoins);
     }
 
@@ -109,8 +109,8 @@ module free_tunnel_aptos::atomic_lock {
         _sender: &signer,
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicLockGeneralStorage, StoreForCoin {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
         let action = req_helpers::actionFrom(&reqId);
@@ -124,9 +124,9 @@ module free_tunnel_aptos::atomic_lock {
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         table::add(&mut storeA.proposedLock, reqId, proposerAddress);
 
-        let storeForCoin = borrow_global_mut<StoreForCoin<CoinType>>(@free_tunnel_aptos);
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
         let coinToLock = coin::withdraw<CoinType>(proposer, amount);
-        coin::merge(&mut storeForCoin.lockedCoins, coinToLock);
+        coin::merge(&mut coinStorage.lockedCoins, coinToLock);
         event::emit(TokenLockProposed{ reqId, proposer: proposerAddress });
     }
     
@@ -138,8 +138,8 @@ module free_tunnel_aptos::atomic_lock {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicLockGeneralStorage {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -166,8 +166,8 @@ module free_tunnel_aptos::atomic_lock {
     public entry fun cancelLock<CoinType>(
         _sender: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicLockGeneralStorage, StoreForCoin {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -179,8 +179,8 @@ module free_tunnel_aptos::atomic_lock {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         
-        let storeForCoin = borrow_global_mut<StoreForCoin<CoinType>>(@free_tunnel_aptos);
-        let coinInside = &mut storeForCoin.lockedCoins;
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+        let coinInside = &mut coinStorage.lockedCoins;
         let coinCancelled = coin::extract(coinInside, amount);
 
         coin::deposit(proposerAddress, coinCancelled);
@@ -192,8 +192,8 @@ module free_tunnel_aptos::atomic_lock {
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
-    ) acquires AtomicLockGeneralStorage {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
@@ -217,8 +217,8 @@ module free_tunnel_aptos::atomic_lock {
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicLockGeneralStorage, StoreForCoin {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage, CoinStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -232,8 +232,8 @@ module free_tunnel_aptos::atomic_lock {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
 
-        let storeForCoin = borrow_global_mut<StoreForCoin<CoinType>>(@free_tunnel_aptos);
-        let coinInside = &mut storeForCoin.lockedCoins;
+        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+        let coinInside = &mut coinStorage.lockedCoins;
         let coinUnlocked = coin::extract(coinInside, amount);
 
         coin::deposit(recipient, coinUnlocked);
@@ -244,8 +244,8 @@ module free_tunnel_aptos::atomic_lock {
     public entry fun cancelUnlock<CoinType>(
         _sender: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicLockGeneralStorage {
-        let storeA = borrow_global_mut<AtomicLockGeneralStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
         let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
