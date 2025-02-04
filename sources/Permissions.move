@@ -86,6 +86,14 @@ module free_tunnel_aptos::permissions {
         proposer: address,
     }
 
+    #[event]
+    struct ExecutorsUpdated has drop, store {
+        executors: vector<vector<u8>>,
+        threshold: u64,
+        activeSince: u64,
+        exeIndex: u64,
+    }
+
 
     // =========================== Functions ===========================
     public(friend) fun assertOnlyAdmin(sender: &signer) acquires PermissionsStorage {
@@ -153,6 +161,7 @@ module free_tunnel_aptos::permissions {
         vector::push_back(&mut storeP._executorsForIndex, executors);
         vector::push_back(&mut storeP._exeThresholdForIndex, threshold);
         vector::push_back(&mut storeP._exeActiveSinceForIndex, 1);
+        event::emit(ExecutorsUpdated { executors, threshold, activeSince: 1, exeIndex: 0 });
     }
 
     public entry fun updateExecutors(
@@ -222,7 +231,8 @@ module free_tunnel_aptos::permissions {
             *vector::borrow_mut(&mut storeP._executorsForIndex, newIndex) = newExecutors;
             *vector::borrow_mut(&mut storeP._exeThresholdForIndex, newIndex) = threshold;
             *vector::borrow_mut(&mut storeP._exeActiveSinceForIndex, newIndex) = activeSince;
-        }
+        };
+        event::emit(ExecutorsUpdated { executors: newExecutors, threshold, activeSince, exeIndex: newIndex });
     }
 
 
