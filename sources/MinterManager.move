@@ -130,6 +130,15 @@ module free_tunnel_rooch::minter_manager {
         event::emit(MinterCapRevoked { minterCapId });
     }
 
+    public entry fun destroyMinterCap<CoinType: key + store>(
+        _minter: &signer,
+        minterCapObj: Object<MinterCap<CoinType>>,
+    ) {
+        let minterCapId = object::id(&minterCapObj);
+        let MinterCap<CoinType> { managerId: _ } = object::remove(minterCapObj);
+        event::emit(MinterCapDestroyed { minterCapId });
+    }
+
 
     // =========================== Minter Functions ===========================
     public entry fun mint<CoinType: key + store>(
@@ -184,15 +193,6 @@ module free_tunnel_rooch::minter_manager {
             ETREASURY_CAP_MANAGER_DESTROYED,
         );
         coin::burn(&mut treasuryCapManager.coinInfoObj, coinToBurn);
-    }
-
-    public entry fun destroyMinterCap<CoinType: key + store>(
-        _minter: &signer,
-        minterCapObj: Object<MinterCap<CoinType>>,
-    ) {
-        let minterCapId = object::id(&minterCapObj);
-        let MinterCap<CoinType> { managerId: _ } = object::remove(minterCapObj);
-        event::emit(MinterCapDestroyed { minterCapId });
     }
 
 
