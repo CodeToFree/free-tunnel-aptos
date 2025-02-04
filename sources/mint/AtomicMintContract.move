@@ -165,7 +165,7 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         req_helpers::checkCreatedTimeFrom(&reqId);
         let storeA = account::borrow_mut_resource<AtomicMintGeneralStorage>(@free_tunnel_rooch);
-        assert!(table::contains(&storeA.proposedMint, reqId), EINVALID_REQ_ID);
+        assert!(!table::contains(&storeA.proposedMint, reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
         req_helpers::amountFrom<CoinType>(&reqId);
@@ -241,7 +241,7 @@ module free_tunnel_rooch::atomic_mint {
         proposer: &signer,
         reqId: vector<u8>,
     ) {
-        req_helpers::assertToChainOnly(&reqId);
+        req_helpers::assertFromChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 3, ENOT_BURN_MINT);
         proposeBurnPrivate<CoinType>(proposer, reqId);
     }
