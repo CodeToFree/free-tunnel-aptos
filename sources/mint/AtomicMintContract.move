@@ -325,6 +325,8 @@ module free_tunnel_aptos::atomic_mint {
     fun testAddToken(coinAdmin: &signer, minter: &signer) acquires StoreForCoinAndMinterCap {
         // initialize
         init_module(coinAdmin);
+        req_helpers::initReqHelpersStorage(coinAdmin);
+        permissions::initPermissionsStorage(coinAdmin);
 
         // setup TreasuryCapManager
         minter_manager::testSetupTreasury(coinAdmin);
