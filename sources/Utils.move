@@ -35,42 +35,42 @@ module free_tunnel_aptos::utils {
         assert!(value < 10000000000, ETOSTRING_VALUE_TOO_LARGE);
         if (value >= 1000000000) {
             let byte = ((value / 1000000000) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 100000000) {
             let byte = (((value / 100000000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 10000000) {
             let byte = (((value / 10000000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 1000000) {
             let byte = (((value / 1000000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 100000) {
             let byte = (((value / 100000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 10000) {
             let byte = (((value / 10000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 1000) {
             let byte = (((value / 1000) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 100) {
             let byte = (((value / 100) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         if (value >= 10) {
             let byte = (((value / 10) % 10) as u8) + 48;
-            vector::push_back(&mut buffer, byte);
+            buffer.push_back(byte);
         };
         let byte = ((value % 10) as u8) + 48;
-        vector::push_back(&mut buffer, byte);
+        buffer.push_back(byte);
         buffer
     }
 
@@ -88,24 +88,24 @@ module free_tunnel_aptos::utils {
     public fun hexToString(hex: &vector<u8>, prefix: bool): vector<u8> {
         let str = vector::empty<u8>();
         if (prefix) {
-            vector::append(&mut str, b"0x");
+            str.append(b"0x");
         };
         let i = 0;
-        while (i < vector::length(hex)) {
-            let byte = *vector::borrow(hex, i);
-            vector::append(&mut str, *vector::borrow(&HEX_TO_STRING_DICT, (byte as u64)));
+        while (i < hex.length()) {
+            let byte = hex[i];
+            str.append(HEX_TO_STRING_DICT[byte as u64]);
             i = i + 1;
         };
         str
     }
 
     public fun ethAddressFromPubkey(pk: vector<u8>): vector<u8> {
-        assert!(vector::length(&pk) == 64, EINVALID_PUBLIC_KEY);
+        assert!(pk.length() == 64, EINVALID_PUBLIC_KEY);
         let hash = aptos_hash::keccak256(pk);
         let ethAddr = vector::empty<u8>();
         let i = 12;
         while (i < 32) {
-            vector::push_back(&mut ethAddr, *vector::borrow(&hash, i));
+            ethAddr.push_back(hash[i]);
             i = i + 1;
         };
         ethAddr
@@ -113,9 +113,9 @@ module free_tunnel_aptos::utils {
 
     public fun recoverEthAddress(digest: vector<u8>, r: vector<u8>, yParityAndS: vector<u8>): vector<u8> {
         let s = copy yParityAndS;
-        let v = *vector::borrow_mut(&mut s, 0) >> 7;
-        *vector::borrow_mut(&mut s, 0) = *vector::borrow(&s, 0) & 0x7f;
-        vector::append(&mut r, s);
+        let v = s[0] >> 7;
+        s[0] = s[0] & 0x7f;
+        r.append(s);
         let ecdsaSig = secp256k1::ecdsa_signature_from_bytes(r);
         let pk = secp256k1::ecdsa_recover(digest, v, &ecdsaSig);
         if (option::is_some(&pk)) {
@@ -128,13 +128,13 @@ module free_tunnel_aptos::utils {
     }
 
     fun assertEthAddress(addr: &vector<u8>) {
-        assert!(vector::length(addr) == 20, EINVALID_ETH_ADDRESS);
+        assert!(addr.length() == 20, EINVALID_ETH_ADDRESS);
     }
 
     public fun assertEthAddressList(addrs: &vector<vector<u8>>) {
         let i = 0;
-        while (i < vector::length(addrs)) {
-            assertEthAddress(vector::borrow(addrs, i));
+        while (i < addrs.length()) {
+            assertEthAddress(&addrs[i]);
             i = i + 1;
         };
     }

@@ -158,12 +158,12 @@ module free_tunnel_aptos::atomic_mint {
     ) acquires AtomicMintStorage {
         req_helpers::checkCreatedTimeFrom(&reqId);
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
-        assert!(!table::contains(&storeA.proposedMint, reqId), EINVALID_REQ_ID);
+        assert!(!storeA.proposedMint.contains(reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
         req_helpers::amountFrom<CoinType>(&reqId);
         req_helpers::tokenIndexFrom<CoinType>(&reqId);
-        table::add(&mut storeA.proposedMint, reqId, recipient);
+        storeA.proposedMint.add(reqId, recipient);
 
         event::emit(TokenMintProposed{ reqId, recipient });
     }
@@ -178,7 +178,7 @@ module free_tunnel_aptos::atomic_mint {
         exeIndex: u64,
     ) acquires AtomicMintStorage, CoinStorage {
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
-        let recipient = *table::borrow(&storeA.proposedMint, reqId);
+        let recipient = *storeA.proposedMint.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
@@ -186,7 +186,7 @@ module free_tunnel_aptos::atomic_mint {
             message, r, yParityAndS, executors, exeIndex, 
         );
 
-        *table::borrow_mut(&mut storeA.proposedMint, reqId) = EXECUTED_PLACEHOLDER;
+        *storeA.proposedMint.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
@@ -203,14 +203,14 @@ module free_tunnel_aptos::atomic_mint {
         reqId: vector<u8>,
     ) acquires AtomicMintStorage {
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
-        let recipient = *table::borrow(&storeA.proposedMint, reqId);
+        let recipient = *storeA.proposedMint.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
             now_seconds() > req_helpers::createdTimeFrom(&reqId) + EXPIRE_EXTRA_PERIOD(),
             EWAIT_UNTIL_EXPIRED
         );
 
-        table::remove(&mut storeA.proposedMint, reqId);
+        storeA.proposedMint.remove(reqId);
         event::emit(TokenMintCancelled{ reqId, recipient });
     }
 
@@ -241,14 +241,14 @@ module free_tunnel_aptos::atomic_mint {
     ) acquires AtomicMintStorage, CoinStorage {
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         req_helpers::checkCreatedTimeFrom(&reqId);
-        assert!(!table::contains(&storeA.proposedBurn, reqId), EINVALID_REQ_ID);
+        assert!(!storeA.proposedBurn.contains(reqId), EINVALID_REQ_ID);
 
         let proposerAddress = signer::address_of(proposer);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_PROPOSER);
 
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
-        table::add(&mut storeA.proposedBurn, reqId, proposerAddress);
+        storeA.proposedBurn.add(reqId, proposerAddress);
         
         let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
         let coinToBurn = coin::withdraw<CoinType>(proposer, amount);
@@ -268,7 +268,7 @@ module free_tunnel_aptos::atomic_mint {
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
 
-        let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
+        let proposerAddress = *storeA.proposedBurn.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
@@ -276,7 +276,7 @@ module free_tunnel_aptos::atomic_mint {
             message, r, yParityAndS, executors, exeIndex, 
         );
 
-        *table::borrow_mut(&mut storeA.proposedBurn, reqId) = EXECUTED_PLACEHOLDER;
+        *storeA.proposedBurn.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
@@ -296,14 +296,14 @@ module free_tunnel_aptos::atomic_mint {
         let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
         let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
 
-        let proposerAddress = *table::borrow(&storeA.proposedBurn, reqId);
+        let proposerAddress = *storeA.proposedBurn.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
             now_seconds() > req_helpers::createdTimeFrom(&reqId) + EXPIRE_PERIOD(),
             EWAIT_UNTIL_EXPIRED
         );
 
-        table::remove(&mut storeA.proposedBurn, reqId);
+        storeA.proposedBurn.remove(reqId);
 
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
