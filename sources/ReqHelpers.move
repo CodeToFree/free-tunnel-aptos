@@ -71,36 +71,36 @@ module free_tunnel_aptos::req_helpers {
         let decimals = coin::decimals<CoinType>();
 
         assert!(
-            !table::contains(&storeR.tokens, tokenIndex), 
+            !storeR.tokens.contains(tokenIndex), 
             ETOKEN_INDEX_OCCUPIED
         );
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
 
         let tokenType = type_info::type_of<CoinType>();
-        table::add(&mut storeR.tokens, tokenIndex, tokenType);
-        table::add(&mut storeR.tokenDecimals, tokenIndex, decimals);
+        storeR.tokens.add(tokenIndex, tokenType);
+        storeR.tokenDecimals.add(tokenIndex, decimals);
         event::emit(TokenAdded { tokenIndex, tokenType });
     }
 
     public(friend) fun removeTokenInternal(tokenIndex: u8) acquires ReqHelpersStorage {
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-        assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
+        assert!(storeR.tokens.contains(tokenIndex), ETOKEN_INDEX_NONEXISTENT);
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
-        let tokenType = table::remove(&mut storeR.tokens, tokenIndex);
-        table::remove(&mut storeR.tokenDecimals, tokenIndex);
+        let tokenType = storeR.tokens.remove(tokenIndex);
+        storeR.tokenDecimals.remove(tokenIndex);
         event::emit(TokenRemoved { tokenIndex, tokenType });
     }
 
     /// `reqId` in format of `version:uint8|createdTime:uint40|action:uint8|tokenIndex:uint8|amount:uint64|from:uint8|to:uint8|(TBD):uint112`
     public(friend) fun versionFrom(reqId: &vector<u8>): u8 {
-        *vector::borrow(reqId, 0)
+        reqId[0]
     }
 
     public(friend) fun createdTimeFrom(reqId: &vector<u8>): u64 {
-        let time = *vector::borrow(reqId, 1) as u64;
+        let time = reqId[1] as u64;
         let i = 2;
         while (i < 6) {
-            time = (time << 8) + (*vector::borrow(reqId, i) as u64);
+            time = (time << 8) + (reqId[i] as u64);
             i = i + 1;
         };
         time
@@ -114,16 +114,16 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun actionFrom(reqId: &vector<u8>): u8 {
-        *vector::borrow(reqId, 6)
+        reqId[6]
     }
 
     public(friend) fun decodeTokenIndex(reqId: &vector<u8>): u8 {
-        *vector::borrow(reqId, 7)
+        reqId[7]
     }
 
     public(friend) fun checkTokenType<CoinType>(tokenIndex: u8) acquires ReqHelpersStorage {
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-        let tokenTypeExpected = *table::borrow(&storeR.tokens, tokenIndex);
+        let tokenTypeExpected = *storeR.tokens.borrow(tokenIndex);
         let tokenTypeActual = type_info::type_of<CoinType>();
         assert!(tokenTypeExpected == tokenTypeActual, ETOKEN_TYPE_MISMATCH);
     }
@@ -131,16 +131,16 @@ module free_tunnel_aptos::req_helpers {
     public(friend) fun tokenIndexFrom<CoinType>(reqId: &vector<u8>): u8 acquires ReqHelpersStorage {
         let tokenIndex = decodeTokenIndex(reqId);
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-        assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
+        assert!(storeR.tokens.contains(tokenIndex), ETOKEN_INDEX_NONEXISTENT);
         checkTokenType<CoinType>(tokenIndex);
         tokenIndex
     }
 
     fun decodeAmount(reqId: &vector<u8>): u64 {
-        let amount = *vector::borrow(reqId, 8) as u64;
+        let amount = reqId[8] as u64;
         let i = 9;
         while (i < 16) {
-            amount = (amount << 8) + (*vector::borrow(reqId, i) as u64);
+            amount = (amount << 8) + (reqId[i] as u64);
             i = i + 1;
         };
         assert!(amount > 0, EAMOUNT_CANNOT_BE_ZERO);
@@ -151,7 +151,7 @@ module free_tunnel_aptos::req_helpers {
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
         let amount = decodeAmount(reqId);
         let tokenIndex = decodeTokenIndex(reqId);
-        let decimals = *table::borrow(&storeR.tokenDecimals, tokenIndex);
+        let decimals = *storeR.tokenDecimals.borrow(tokenIndex);
         if (decimals > 6) {
             amount = amount * math64::pow(10, (decimals as u64) - 6);
         } else if (decimals < 6) {
@@ -161,34 +161,34 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun msgFromReqSigningMessage(reqId: &vector<u8>): vector<u8> {
-        assert!(vector::length(reqId) == 32, EINVALID_REQ_ID_LENGTH);
+        assert!(reqId.length() == 32, EINVALID_REQ_ID_LENGTH);
         let specificAction = actionFrom(reqId) & 0x0f;
         if (specificAction == 1) {
             let msg = ETH_SIGN_HEADER();
-            vector::append(&mut msg, smallU64ToString(3 + vector::length(&BRIDGE_CHANNEL()) + 29 + 66));
-            vector::append(&mut msg, b"[");
-            vector::append(&mut msg, BRIDGE_CHANNEL());
-            vector::append(&mut msg, b"]\n");
-            vector::append(&mut msg, b"Sign to execute a lock-mint:\n");
-            vector::append(&mut msg, hexToString(reqId, true));
+            msg.append(smallU64ToString(3 + BRIDGE_CHANNEL().length() + 29 + 66));
+            msg.append(b"[");
+            msg.append(BRIDGE_CHANNEL());
+            msg.append(b"]\n");
+            msg.append(b"Sign to execute a lock-mint:\n");
+            msg.append(hexToString(reqId, true));
             msg
         } else if (specificAction == 2) {
             let msg = ETH_SIGN_HEADER();
-            vector::append(&mut msg, smallU64ToString(3 + vector::length(&BRIDGE_CHANNEL()) + 31 + 66));
-            vector::append(&mut msg, b"[");
-            vector::append(&mut msg, BRIDGE_CHANNEL());
-            vector::append(&mut msg, b"]\n");
-            vector::append(&mut msg, b"Sign to execute a burn-unlock:\n");
-            vector::append(&mut msg, hexToString(reqId, true));
+            msg.append(smallU64ToString(3 + BRIDGE_CHANNEL().length() + 31 + 66));
+            msg.append(b"[");
+            msg.append(BRIDGE_CHANNEL());
+            msg.append(b"]\n");
+            msg.append(b"Sign to execute a burn-unlock:\n");
+            msg.append(hexToString(reqId, true));
             msg
         } else if (specificAction == 3) {
             let msg = ETH_SIGN_HEADER();
-            vector::append(&mut msg, smallU64ToString(3 + vector::length(&BRIDGE_CHANNEL()) + 29 + 66));
-            vector::append(&mut msg, b"[");
-            vector::append(&mut msg, BRIDGE_CHANNEL());
-            vector::append(&mut msg, b"]\n");
-            vector::append(&mut msg, b"Sign to execute a burn-mint:\n");
-            vector::append(&mut msg, hexToString(reqId, true));
+            msg.append(smallU64ToString(3 + BRIDGE_CHANNEL().length() + 29 + 66));
+            msg.append(b"[");
+            msg.append(BRIDGE_CHANNEL());
+            msg.append(b"]\n");
+            msg.append(b"Sign to execute a burn-mint:\n");
+            msg.append(hexToString(reqId, true));
             msg
         } else {
             vector::empty<u8>()
@@ -196,11 +196,11 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun assertFromChainOnly(reqId: &vector<u8>) {
-        assert!(CHAIN == *vector::borrow(reqId, 16), ENOT_FROM_CURRENT_CHAIN);
+        assert!(CHAIN == reqId[16], ENOT_FROM_CURRENT_CHAIN);
     }
 
     public(friend) fun assertToChainOnly(reqId: &vector<u8>) {
-        assert!(CHAIN == *vector::borrow(reqId, 17), ENOT_TO_CURRENT_CHAIN);
+        assert!(CHAIN == reqId[17], ENOT_TO_CURRENT_CHAIN);
     }
 
     #[test]
