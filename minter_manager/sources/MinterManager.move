@@ -1,4 +1,4 @@
-module free_tunnel_rooch::minter_manager {
+module minter_manager::minter_manager {
 
     // =========================== Packages ===========================
     use moveos_std::event;
@@ -207,7 +207,7 @@ module free_tunnel_rooch::minter_manager {
     #[test_only]
     struct FakeMoney has key, store {}
 
-    #[test(coinAdmin = @free_tunnel_rooch)]
+    #[test(coinAdmin = @minter_manager)]
     fun testIssueCoin(coinAdmin: &signer): ObjectID {
         rooch_framework::genesis::init_for_test();
         let coinInfoObj = coin::register_extend<FakeMoney>(
@@ -221,7 +221,7 @@ module free_tunnel_rooch::minter_manager {
         coinInfoObjId
     }
 
-    #[test(coinAdmin = @free_tunnel_rooch, to = @0x44cc)]
+    #[test(coinAdmin = @minter_manager, to = @0x44cc)]
     fun testNormalMint(coinAdmin: &signer, to: &signer) {
         let coinInfoObjId = testIssueCoin(coinAdmin);
         let coinInfoObjMut = object::borrow_mut_object<CoinInfo<FakeMoney>>(
@@ -232,7 +232,7 @@ module free_tunnel_rooch::minter_manager {
 
     }
 
-    #[test(coinAdmin = @free_tunnel_rooch)]
+    #[test(coinAdmin = @minter_manager)]
     fun testSetupTreasury(coinAdmin: &signer) {
         let coinInfoObjId = testIssueCoin(coinAdmin);
         let coinInfoObj = object::take_object(coinAdmin, coinInfoObjId);

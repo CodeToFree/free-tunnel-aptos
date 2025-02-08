@@ -14,7 +14,7 @@ module free_tunnel_rooch::atomic_mint {
 
     use free_tunnel_rooch::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_rooch::permissions;
-    use free_tunnel_rooch::minter_manager::{Self, MinterCap, TreasuryCapManager};
+    use minter_manager::minter_manager::{Self, MinterCap, TreasuryCapManager};
 
 
     // =========================== Constants ==========================
