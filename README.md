@@ -46,8 +46,8 @@ Run tests for each package:
 cd minter_manager
 rooch move test --named-addresses minter_manager="0xaaff"
 
-# Test atomic package
-cd atomic
+# Test free tunnel package
+cd free_tunnel
 rooch move test --named-addresses minter_manager="0xaaff",free_tunnel_rooch="0xbbee"
 ```
 
