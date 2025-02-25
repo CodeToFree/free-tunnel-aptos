@@ -28,7 +28,7 @@ module free_tunnel_rooch::req_helpers {
     const EAMOUNT_CANNOT_BE_ZERO: u64 = 8;
     const ETOKEN_TYPE_MISMATCH: u64 = 9;
 
-    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"SolvBTC Bridge" }
+    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"Rooch Bridge" }
     public(friend) fun PROPOSE_PERIOD(): u64 { 172800 }         // 48 hours
     public(friend) fun EXPIRE_PERIOD(): u64 { 259200 }          // 72 hours
     public(friend) fun EXPIRE_EXTRA_PERIOD(): u64 { 345600 }    // 96 hours
@@ -219,7 +219,7 @@ module free_tunnel_rooch::req_helpers {
     fun testMsgFromReqSigningMessage1() {
         // action 1: lock-mint
         let reqId = x"112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n112[SolvBTC Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n110[Rooch Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -227,7 +227,7 @@ module free_tunnel_rooch::req_helpers {
     fun testMsgFromReqSigningMessage2() {
         // action 2: burn-unlock
         let reqId = x"112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n114[SolvBTC Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n112[Rooch Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -235,7 +235,7 @@ module free_tunnel_rooch::req_helpers {
     fun testMsgFromReqSigningMessage3() {
         // action 3: burn-mint
         let reqId = x"112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n112[SolvBTC Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n110[Rooch Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
