@@ -4,7 +4,9 @@ module free_tunnel_aptos::atomic_lock {
     use std::event;
     use std::signer;
     use std::table;
-    use aptos_framework::coin::{Self, Coin};
+    use aptos_framework::object::{Self, Object, ExtendRef};
+    use aptos_framework::fungible_asset::Metadata;
+    use aptos_framework::primary_fungible_store;
     use std::timestamp::now_seconds;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
@@ -25,14 +27,15 @@ module free_tunnel_aptos::atomic_lock {
 
     // ============================ Storage ===========================
     struct AtomicLockStorage has key, store {
+        store_contract_signer_extend_ref: ExtendRef,
         proposedLock: table::Table<vector<u8>, address>,
         proposedUnlock: table::Table<vector<u8>, address>,
         lockedBalanceOf: table::Table<u8, u64>,
     }
 
-    struct CoinStorage<phantom CoinType> has key {
-        lockedCoins: Coin<CoinType>,
-    }
+    // struct CoinStorage<phantom CoinType> has key {
+    //     lockedCoins: Coin<CoinType>,
+    // }
 
     #[event]
     struct TokenLockProposed has drop, store {
@@ -71,32 +74,40 @@ module free_tunnel_aptos::atomic_lock {
     }
 
     fun init_module(admin: &signer) {
+        let constructor_ref = object::create_named_object(admin, b"atomic_lock");
+        let store_address_signer = object::generate_signer(&constructor_ref);
+        let extend_ref = object::generate_extend_ref(&constructor_ref);
         let atomicLockStorage = AtomicLockStorage {
+            store_contract_signer_extend_ref: extend_ref,
             proposedLock: table::new(),
             proposedUnlock: table::new(),
             lockedBalanceOf: table::new(),
         };
-        move_to(admin, atomicLockStorage);
+        move_to(&store_address_signer, atomicLockStorage);
     }
 
 
     // =========================== Functions ===========================
-    public entry fun addToken<CoinType>(
+    #[view]
+    public fun get_store_address(): address {
+        object::create_object_address(&DEPLOYER, b"atomic_lock")
+    }
+
+    fun get_store_contract_signer(): signer acquires AtomicLockStorage {
+        let storeA = borrow_global<AtomicLockStorage>(get_store_address());
+        object::generate_signer_for_extending(&storeA.store_contract_signer_extend_ref)
+    }
+
+    public entry fun addToken(
         admin: &signer,
         tokenIndex: u8,
+        tokenMetadata: Object<Metadata>,
     ) {
         permissions::assertOnlyAdmin(admin);
-        req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        if (!exists<CoinStorage<CoinType>>(@free_tunnel_aptos)) {
-            let coinStorage = CoinStorage<CoinType> {
-                lockedCoins: coin::zero<CoinType>(),
-            };
-            move_to(admin, coinStorage);
-        }
+        req_helpers::addTokenInternal(tokenIndex, tokenMetadata);
     }
     
-
-    public entry fun removeToken<CoinType>(
+    public entry fun removeTokenInternal(
         admin: &signer,
         tokenIndex: u8,
     ) {
@@ -105,12 +116,12 @@ module free_tunnel_aptos::atomic_lock {
     }
 
 
-    public entry fun proposeLock<CoinType>(
+    public entry fun proposeLock(
         _sender: &signer,
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicLockStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
         let action = req_helpers::actionFrom(&reqId);
@@ -120,18 +131,18 @@ module free_tunnel_aptos::atomic_lock {
         let proposerAddress = signer::address_of(proposer);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_PROPOSER);
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
         storeA.proposedLock.add(reqId, proposerAddress);
 
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        let coinToLock = coin::withdraw<CoinType>(proposer, amount);
-        coin::merge(&mut coinStorage.lockedCoins, coinToLock);
+        let metadata = req_helpers::tokenMetadataFrom(&reqId);
+        let assetToLock = primary_fungible_store::withdraw(proposer, metadata, amount);
+        primary_fungible_store::deposit(get_store_address(), assetToLock);
         event::emit(TokenLockProposed{ reqId, proposer: proposerAddress });
     }
     
 
-    public entry fun executeLock<CoinType>(
+    public entry fun executeLock(
         _sender: &signer,
         reqId: vector<u8>,
         r: vector<vector<u8>>,
@@ -139,7 +150,7 @@ module free_tunnel_aptos::atomic_lock {
         executors: vector<vector<u8>>,
         exeIndex: u64,
     ) acquires AtomicLockStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         let proposerAddress = *storeA.proposedLock.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -150,8 +161,8 @@ module free_tunnel_aptos::atomic_lock {
 
         *storeA.proposedLock.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
         if (storeA.lockedBalanceOf.contains(tokenIndex)) {
             let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
@@ -163,11 +174,11 @@ module free_tunnel_aptos::atomic_lock {
     }
 
 
-    public entry fun cancelLock<CoinType>(
+    public entry fun cancelLock(
         _sender: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicLockStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         let proposerAddress = *storeA.proposedLock.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -176,24 +187,22 @@ module free_tunnel_aptos::atomic_lock {
         );
         storeA.proposedLock.remove(reqId);
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
-        
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        let coinInside = &mut coinStorage.lockedCoins;
-        let coinCancelled = coin::extract(coinInside, amount);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        coin::deposit(proposerAddress, coinCancelled);
+        let metadata = req_helpers::tokenMetadataFrom(&reqId);
+        let assetCancelled = primary_fungible_store::withdraw(&get_store_contract_signer(), metadata, amount);
+        primary_fungible_store::deposit(proposerAddress, assetCancelled);
         event::emit(TokenLockCancelled{ reqId, proposer: proposerAddress });
     }
 
 
-    public entry fun proposeUnlock<CoinType>(
+    public entry fun proposeUnlock(
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
     ) acquires AtomicLockStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
@@ -201,8 +210,8 @@ module free_tunnel_aptos::atomic_lock {
         assert!(!storeA.proposedUnlock.contains(reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
         let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
         *storeA.lockedBalanceOf.borrow_mut(tokenIndex) = originalAmount - amount;
         storeA.proposedUnlock.add(reqId, recipient);
@@ -210,15 +219,15 @@ module free_tunnel_aptos::atomic_lock {
     }
 
 
-    public entry fun executeUnlock<CoinType>(
+    public entry fun executeUnlock(
         _sender: &signer,
         reqId: vector<u8>,
         r: vector<vector<u8>>,
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicLockStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+    ) acquires AtomicLockStorage {
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         let recipient = *storeA.proposedUnlock.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -229,23 +238,21 @@ module free_tunnel_aptos::atomic_lock {
 
         *storeA.proposedUnlock.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        let coinInside = &mut coinStorage.lockedCoins;
-        let coinUnlocked = coin::extract(coinInside, amount);
-
-        coin::deposit(recipient, coinUnlocked);
+        let metadata = req_helpers::tokenMetadataFrom(&reqId);
+        let assetUnlocked = primary_fungible_store::withdraw(&get_store_contract_signer(), metadata, amount);
+        primary_fungible_store::deposit(recipient, assetUnlocked);
         event::emit(TokenUnlockExecuted{ reqId, recipient });
     }
 
 
-    public entry fun cancelUnlock<CoinType>(
+    public entry fun cancelUnlock(
         _sender: &signer,
         reqId: vector<u8>,
     ) acquires AtomicLockStorage {
-        let storeA = borrow_global_mut<AtomicLockStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
         let recipient = *storeA.proposedUnlock.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -254,8 +261,8 @@ module free_tunnel_aptos::atomic_lock {
         );
 
         storeA.proposedUnlock.remove(reqId);
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
         let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
         *storeA.lockedBalanceOf.borrow_mut(tokenIndex) = originalAmount + amount;
         event::emit(TokenUnlockCancelled{ reqId, recipient });

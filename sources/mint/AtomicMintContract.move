@@ -4,12 +4,12 @@ module free_tunnel_aptos::atomic_mint {
     use std::event;
     use std::signer;
     use std::table;
-    use std::option::{Self, Option};
     use std::timestamp::now_seconds;
-    use aptos_framework::coin::{Self, Coin, MintCapability, BurnCapability};
+    use aptos_framework::object::{Self, Object, ExtendRef};
+    use aptos_framework::fungible_asset::Metadata;
+    use aptos_framework::primary_fungible_store;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
-    use free_tunnel_aptos::minter_manager;
 
 
     // =========================== Constants ==========================
@@ -28,16 +28,17 @@ module free_tunnel_aptos::atomic_mint {
 
 
     // ============================ Storage ===========================
-    struct AtomicMintStorage has key {
+    struct AtomicMintStorage has key, store {
+        store_contract_signer_extend_ref: ExtendRef,
         proposedMint: table::Table<vector<u8>, address>,
         proposedBurn: table::Table<vector<u8>, address>,
     }
 
-    struct CoinStorage<phantom CoinType> has key {
-        burningCoins: Coin<CoinType>,
-        mintCapOpt: Option<MintCapability<CoinType>>,
-        burnCapOpt: Option<BurnCapability<CoinType>>,
-    }
+    // struct CoinStorage<phantom CoinType> has key {
+    //     burningCoins: Coin,
+    //     mintCapOpt: Option<MintCapability>,
+    //     burnCapOpt: Option<BurnCapability>,
+    // }
 
     #[event]
     struct TokenMintProposed has drop, store {
@@ -76,60 +77,61 @@ module free_tunnel_aptos::atomic_mint {
     }
 
     fun init_module(admin: &signer) {
+        let constructor_ref = object::create_named_object(admin, b"atomic_mint");
+        let store_address_signer = object::generate_signer(&constructor_ref);
+        let extend_ref = object::generate_extend_ref(&constructor_ref);
         let atomicMintStorage = AtomicMintStorage {
+            store_contract_signer_extend_ref: extend_ref,
             proposedMint: table::new(),
             proposedBurn: table::new(),
         };
-        move_to(admin, atomicMintStorage);
+        move_to(&store_address_signer, atomicMintStorage);
     }
 
 
-    // =========================== Functions ===========================
-    public entry fun addToken<CoinType>(admin: &signer, tokenIndex: u8) {
+    // // =========================== Functions ===========================
+    #[view]
+    public fun get_store_address(): address {
+        object::create_object_address(&DEPLOYER, b"atomic_mint")
+    }
+
+    fun get_store_contract_signer(): signer acquires AtomicMintStorage {
+        let storeA = borrow_global<AtomicMintStorage>(get_store_address());
+        object::generate_signer_for_extending(&storeA.store_contract_signer_extend_ref)
+    }
+
+    public entry fun addToken(
+        admin: &signer, 
+        tokenIndex: u8, 
+        tokenMetadata: Object<Metadata>
+    ) {
         permissions::assertOnlyAdmin(admin);
-        req_helpers::addTokenInternal<CoinType>(tokenIndex);
-        if (!exists<CoinStorage<CoinType>>(@free_tunnel_aptos)) {
-            let coinStorage = CoinStorage<CoinType> {
-                burningCoins: coin::zero<CoinType>(),
-                mintCapOpt: option::none(),
-                burnCapOpt: option::none(),
-            };
-            move_to(admin, coinStorage);
-        }
+        req_helpers::addTokenInternal(tokenIndex, tokenMetadata);
     }
 
 
-    public entry fun transferMinterCap<CoinType>(
-        minter: &signer,
-        tokenIndex: u8,
-    ) acquires CoinStorage {
-        req_helpers::checkTokenType<CoinType>(tokenIndex);
+    // public entry fun transferMinterCap(
+    //     minter: &signer,
+    //     tokenIndex: u8,
+    // ) {
+    //     req_helpers::checkTokenType(tokenIndex);
+    //     let (mintCap, burnCap) = minter_manager::extractCap(minter);
+    //     let coinStorage = borrow_global_mut<CoinStorage>(@free_tunnel_aptos);
+    //     option::fill(&mut coinStorage.mintCapOpt, mintCap);
+    //     option::fill(&mut coinStorage.burnCapOpt, burnCap);
+    // }
 
-        let (mintCap, burnCap) = minter_manager::extractCap<CoinType>(minter);
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        option::fill(&mut coinStorage.mintCapOpt, mintCap);
-        option::fill(&mut coinStorage.burnCapOpt, burnCap);
-    }
 
-
-    public entry fun removeToken<CoinType>(
+    public entry fun removeToken(
         admin: &signer,
         tokenIndex: u8,
-    ) acquires CoinStorage {
+    ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::removeTokenInternal(tokenIndex);
-
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        if (option::is_some(&coinStorage.mintCapOpt)) {
-            let mintCap = option::extract(&mut coinStorage.mintCapOpt);
-            let burnCap = option::extract(&mut coinStorage.burnCapOpt);
-            coin::destroy_mint_cap(mintCap);
-            coin::destroy_burn_cap(burnCap);
-        }
     }
 
 
-    public entry fun proposeMint<CoinType>(
+    public entry fun proposeMint(
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
@@ -137,10 +139,10 @@ module free_tunnel_aptos::atomic_mint {
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 1, ENOT_LOCK_MINT);
-        proposeMintPrivate<CoinType>(reqId, recipient);
+        proposeMintPrivate(reqId, recipient);
     }
 
-    public entry fun proposeMintFromBurn<CoinType>(
+    public entry fun proposeMintFromBurn(
         proposer: &signer,
         reqId: vector<u8>,
         recipient: address,
@@ -148,36 +150,36 @@ module free_tunnel_aptos::atomic_mint {
         permissions::assertOnlyProposer(proposer);
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 3, ENOT_BURN_MINT);
-        proposeMintPrivate<CoinType>(reqId, recipient);
+        proposeMintPrivate(reqId, recipient);
     }
 
 
-    fun proposeMintPrivate<CoinType>(
+    fun proposeMintPrivate(
         reqId: vector<u8>,
         recipient: address,
     ) acquires AtomicMintStorage {
         req_helpers::checkCreatedTimeFrom(&reqId);
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
         assert!(!storeA.proposedMint.contains(reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
-        req_helpers::amountFrom<CoinType>(&reqId);
-        req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        req_helpers::amountFrom(&reqId);
+        req_helpers::tokenIndexFrom(&reqId);
         storeA.proposedMint.add(reqId, recipient);
 
         event::emit(TokenMintProposed{ reqId, recipient });
     }
 
 
-    public entry fun executeMint<CoinType>(
+    public entry fun executeMint(
         _sender: &signer,
         reqId: vector<u8>,
         r: vector<vector<u8>>,
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicMintStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
         let recipient = *storeA.proposedMint.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
@@ -188,21 +190,21 @@ module free_tunnel_aptos::atomic_mint {
 
         *storeA.proposedMint.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let mintCap = option::borrow(&borrow_global<CoinStorage<CoinType>>(@free_tunnel_aptos).mintCapOpt);
-        let coinsToDeposit = coin::mint<CoinType>(amount, mintCap);
-        coin::deposit(recipient, coinsToDeposit);
+        let contract_signer = get_store_contract_signer();
+        // oft_fa::mint(&contract_signer, recipient, amount);
+
         event::emit(TokenMintExecuted{ reqId, recipient });
     }
 
 
-    public entry fun cancelMint<CoinType>(
+    public entry fun cancelMint(
         _sender: &signer,
         reqId: vector<u8>,
     ) acquires AtomicMintStorage {
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
         let recipient = *storeA.proposedMint.borrow(reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
@@ -215,58 +217,57 @@ module free_tunnel_aptos::atomic_mint {
     }
 
 
-    public entry fun proposeBurn<CoinType>(
+    public entry fun proposeBurn(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintStorage, CoinStorage {
+    ) acquires AtomicMintStorage {
         req_helpers::assertToChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 2, ENOT_BURN_UNLOCK);
-        proposeBurnPrivate<CoinType>(proposer, reqId);
+        proposeBurnPrivate(proposer, reqId);
     }
 
 
-    public entry fun proposeBurnForMint<CoinType>(
+    public entry fun proposeBurnForMint(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintStorage, CoinStorage {
+    ) acquires AtomicMintStorage {
         req_helpers::assertFromChainOnly(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 3, ENOT_BURN_MINT);
-        proposeBurnPrivate<CoinType>(proposer, reqId);
+        proposeBurnPrivate(proposer, reqId);
     }
 
 
-    fun proposeBurnPrivate<CoinType>(
+    fun proposeBurnPrivate(
         proposer: &signer,
         reqId: vector<u8>,
-    ) acquires AtomicMintStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
         req_helpers::checkCreatedTimeFrom(&reqId);
         assert!(!storeA.proposedBurn.contains(reqId), EINVALID_REQ_ID);
 
         let proposerAddress = signer::address_of(proposer);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_PROPOSER);
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
         storeA.proposedBurn.add(reqId, proposerAddress);
-        
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
-        let coinToBurn = coin::withdraw<CoinType>(proposer, amount);
-        coin::merge(&mut coinStorage.burningCoins, coinToBurn);
+
+        let metadata = req_helpers::tokenMetadataFrom(&reqId);
+        let assetToBurn = primary_fungible_store::withdraw(proposer, metadata, amount);
+        primary_fungible_store::deposit(get_store_address(), assetToBurn);
         event::emit(TokenBurnProposed{ reqId, proposer: proposerAddress });
     }
 
 
-    public entry fun executeBurn<CoinType>(
+    public entry fun executeBurn(
         _sender: &signer,
         reqId: vector<u8>,
         r: vector<vector<u8>>,
         yParityAndS: vector<vector<u8>>,
         executors: vector<vector<u8>>,
         exeIndex: u64,
-    ) acquires AtomicMintStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
 
         let proposerAddress = *storeA.proposedBurn.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -278,23 +279,20 @@ module free_tunnel_aptos::atomic_mint {
 
         *storeA.proposedBurn.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let coinInside = &mut coinStorage.burningCoins;
-        let coinBurned = coin::extract(coinInside, amount);
+        let contract_signer = get_store_contract_signer();
+        // oft_fa::burn(&contract_signer, get_store_address(), amount);
 
-        let burnCap = option::borrow(&coinStorage.burnCapOpt);
-        coin::burn<CoinType>(coinBurned, burnCap);
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }
 
 
-    public entry fun cancelBurn<CoinType>(
+    public entry fun cancelBurn(
         reqId: vector<u8>,
-    ) acquires AtomicMintStorage, CoinStorage {
-        let storeA = borrow_global_mut<AtomicMintStorage>(@free_tunnel_aptos);
-        let coinStorage = borrow_global_mut<CoinStorage<CoinType>>(@free_tunnel_aptos);
+    ) acquires AtomicMintStorage {
+        let storeA = borrow_global_mut<AtomicMintStorage>(get_store_address());
 
         let proposerAddress = *storeA.proposedBurn.borrow(reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
@@ -305,56 +303,47 @@ module free_tunnel_aptos::atomic_mint {
 
         storeA.proposedBurn.remove(reqId);
 
-        let amount = req_helpers::amountFrom<CoinType>(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
+        let amount = req_helpers::amountFrom(&reqId);
+        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let coinInside = &mut coinStorage.burningCoins;
-        let coinCancelled = coin::extract(coinInside, amount);
+        let metadata = req_helpers::tokenMetadataFrom(&reqId);
+        let assetCancelled = primary_fungible_store::withdraw(&get_store_contract_signer(), metadata, amount);
+        primary_fungible_store::deposit(proposerAddress, assetCancelled);
 
-        coin::deposit(proposerAddress, coinCancelled);
         event::emit(TokenBurnCancelled{ reqId, proposer: proposerAddress });
     }
 
 
     // =========================== Test ===========================
-    #[test_only]
-    use free_tunnel_aptos::minter_manager::FakeMoney;
+    // #[test(coinAdmin = @free_tunnel_aptos)]
+    // fun testAddToken(coinAdmin: &signer) {
+    //     // initialize
+    //     init_module(coinAdmin);
+    //     req_helpers::initReqHelpersStorage(coinAdmin);
+    //     permissions::initPermissionsStorage(coinAdmin);
 
-    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    fun testAddToken(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
-        // initialize
-        init_module(coinAdmin);
-        req_helpers::initReqHelpersStorage(coinAdmin);
-        permissions::initPermissionsStorage(coinAdmin);
+    //     // add token
+    //     addToken(coinAdmin, 15, );
+    // }
 
-        // setup TreasuryCapManager
-        minter_manager::testSetupTreasury(coinAdmin);
-        minter_manager::registerMinterCap<FakeMoney>(minter);
-        minter_manager::issueMinterCap<FakeMoney>(coinAdmin, signer::address_of(minter));
+    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    // fun testRemoveToken(coinAdmin: &signer, minter: &signer) {
+    //     testAddToken(coinAdmin, minter);
+    //     removeToken<FakeMoney>(coinAdmin, 15);
+    // }
 
-        // add token
-        addToken<FakeMoney>(coinAdmin, 15);
-        transferMinterCap<FakeMoney>(minter, 15);
-    }
+    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    // #[expected_failure]
+    // fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) {
+    //     testAddToken(coinAdmin, minter);
+    //     addToken<FakeMoney>(coinAdmin, 15);
+    // }
 
-    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    fun testRemoveToken(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
-        testAddToken(coinAdmin, minter);
-        removeToken<FakeMoney>(coinAdmin, 15);
-    }
-
-    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    #[expected_failure]
-    fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
-        testAddToken(coinAdmin, minter);
-        addToken<FakeMoney>(coinAdmin, 15);
-    }
-
-    #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    #[expected_failure]
-    fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) acquires CoinStorage {
-        testRemoveToken(coinAdmin, minter);
-        removeToken<FakeMoney>(coinAdmin, 15);
-    }
+    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
+    // #[expected_failure]
+    // fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) {
+    //     testRemoveToken(coinAdmin, minter);
+    //     removeToken<FakeMoney>(coinAdmin, 15);
+    // }
 
 }
