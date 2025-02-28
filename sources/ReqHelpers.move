@@ -115,13 +115,6 @@ module free_tunnel_aptos::req_helpers {
         reqId[7]
     }
 
-    // public(friend) fun checkTokenType<CoinType>(tokenIndex: u8) acquires ReqHelpersStorage {
-    //     let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-    //     let tokenTypeExpected = *storeR.tokens.borrow(tokenIndex);
-    //     let tokenTypeActual = type_info::type_of<CoinType>();
-    //     assert!(tokenTypeExpected == tokenTypeActual, ETOKEN_TYPE_MISMATCH);
-    // }
-
     public(friend) fun tokenIndexFrom(reqId: &vector<u8>): u8 acquires ReqHelpersStorage {
         let tokenIndex = decodeTokenIndex(reqId);
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);

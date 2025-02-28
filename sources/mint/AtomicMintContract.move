@@ -10,6 +10,7 @@ module free_tunnel_aptos::atomic_mint {
     use aptos_framework::primary_fungible_store;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
+    use oft::oft_fa;
 
 
     // =========================== Constants ==========================
@@ -33,12 +34,6 @@ module free_tunnel_aptos::atomic_mint {
         proposedMint: table::Table<vector<u8>, address>,
         proposedBurn: table::Table<vector<u8>, address>,
     }
-
-    // struct CoinStorage<phantom CoinType> has key {
-    //     burningCoins: Coin,
-    //     mintCapOpt: Option<MintCapability>,
-    //     burnCapOpt: Option<BurnCapability>,
-    // }
 
     #[event]
     struct TokenMintProposed has drop, store {
@@ -89,7 +84,7 @@ module free_tunnel_aptos::atomic_mint {
     }
 
 
-    // // =========================== Functions ===========================
+    // =========================== Functions ===========================
     #[view]
     public fun get_store_address(): address {
         object::create_object_address(&DEPLOYER, b"atomic_mint")
@@ -108,19 +103,6 @@ module free_tunnel_aptos::atomic_mint {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal(tokenIndex, tokenMetadata);
     }
-
-
-    // public entry fun transferMinterCap(
-    //     minter: &signer,
-    //     tokenIndex: u8,
-    // ) {
-    //     req_helpers::checkTokenType(tokenIndex);
-    //     let (mintCap, burnCap) = minter_manager::extractCap(minter);
-    //     let coinStorage = borrow_global_mut<CoinStorage>(@free_tunnel_aptos);
-    //     option::fill(&mut coinStorage.mintCapOpt, mintCap);
-    //     option::fill(&mut coinStorage.burnCapOpt, burnCap);
-    // }
-
 
     public entry fun removeToken(
         admin: &signer,
@@ -194,7 +176,7 @@ module free_tunnel_aptos::atomic_mint {
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
         let contract_signer = get_store_contract_signer();
-        // oft_fa::mint(&contract_signer, recipient, amount);
+        oft_fa::mint(&contract_signer, recipient, amount);
 
         event::emit(TokenMintExecuted{ reqId, recipient });
     }
@@ -283,7 +265,7 @@ module free_tunnel_aptos::atomic_mint {
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
         let contract_signer = get_store_contract_signer();
-        // oft_fa::burn(&contract_signer, get_store_address(), amount);
+        oft_fa::burn(&contract_signer, get_store_address(), amount);
 
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }

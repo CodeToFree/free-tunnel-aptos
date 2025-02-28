@@ -33,10 +33,6 @@ module free_tunnel_aptos::atomic_lock {
         lockedBalanceOf: table::Table<u8, u64>,
     }
 
-    // struct CoinStorage<phantom CoinType> has key {
-    //     lockedCoins: Coin<CoinType>,
-    // }
-
     #[event]
     struct TokenLockProposed has drop, store {
         reqId: vector<u8>,
