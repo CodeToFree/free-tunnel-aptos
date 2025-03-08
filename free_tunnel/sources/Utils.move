@@ -31,33 +31,33 @@ module free_tunnel_rooch::utils {
 
     public fun smallU64ToString(value: u64): vector<u8> {
         let buffer = vector::empty<u8>();
-        assert!(value < 10000000000, ETOSTRING_VALUE_TOO_LARGE);
-        if (value >= 1000000000) {
-            let byte = ((value / 1000000000) as u8) + 48;
+        assert!(value < 10_000_000_000, ETOSTRING_VALUE_TOO_LARGE);
+        if (value >= 1_000_000_000) {
+            let byte = ((value / 1_000_000_000) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 100000000) {
-            let byte = (((value / 100000000) % 10) as u8) + 48;
+        if (value >= 100_000_000) {
+            let byte = (((value / 100_000_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 10000000) {
-            let byte = (((value / 10000000) % 10) as u8) + 48;
+        if (value >= 10_000_000) {
+            let byte = (((value / 10_000_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 1000000) {
-            let byte = (((value / 1000000) % 10) as u8) + 48;
+        if (value >= 1_000_000) {
+            let byte = (((value / 1_000_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 100000) {
-            let byte = (((value / 100000) % 10) as u8) + 48;
+        if (value >= 100_000) {
+            let byte = (((value / 100_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 10000) {
-            let byte = (((value / 10000) % 10) as u8) + 48;
+        if (value >= 10_000) {
+            let byte = (((value / 10_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
-        if (value >= 1000) {
-            let byte = (((value / 1000) % 10) as u8) + 48;
+        if (value >= 1_000) {
+            let byte = (((value / 1_000) % 10) as u8) + 48;
             vector::push_back(&mut buffer, byte);
         };
         if (value >= 100) {
@@ -74,7 +74,7 @@ module free_tunnel_rooch::utils {
     }
 
     public fun smallU64Log10(value: u64): u64 {
-        assert!(value < 10000, ELOG10_VALUE_TOO_LARGE);
+        assert!(value < 10_000, ELOG10_VALUE_TOO_LARGE);
         let result = 0;
         value = value / 10;
         while (value != 0) {

@@ -6,7 +6,7 @@ A bridge protocol implementation on Rooch blockchain that enables cross-chain to
 
 The project consists of two main packages:
 
-### 1. Atomic Package (`/atomic`)
+### 1. Free Tunnel Package (`/free_tunnel`)
 Core bridge protocol implementation with features:
 - Atomic coin minting and burning
 - Atomic coin locking and unlocking 

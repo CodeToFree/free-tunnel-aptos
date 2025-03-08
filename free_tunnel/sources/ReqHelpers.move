@@ -14,8 +14,10 @@ module free_tunnel_rooch::req_helpers {
     friend free_tunnel_rooch::atomic_lock;
     
 
-    // =========================== Constants ==========================
-    const CHAIN: u8 = 0xb0;
+    // =========================== Constants ==========================    
+    // const CHAIN: u8 = 0xa5;     // For Aptos Mainnet
+    // const CHAIN: u8 = 0xa6;     // For Movement Mainnet
+    const CHAIN: u8 = 0xff;        // For Testnets
 
     const ETOKEN_INDEX_OCCUPIED: u64 = 0;
     const ETOKEN_INDEX_CANNOT_BE_ZERO: u64 = 1;
@@ -205,7 +207,7 @@ module free_tunnel_rooch::req_helpers {
     #[test]
     fun testDecodingReqid() {
         // `version:uint8|createdTime:uint40|action:uint8|tokenIndex:uint8|amount:uint64|from:uint8|to:uint8|(TBD):uint112`
-        let reqId = x"112233445566778899aabbccddeeff00b0b0ffffffffffffffffffffffffffff";
+        let reqId = x"112233445566778899aabbccddeeff00ffffffffffffffffffffffffffffffff";
         assert!(versionFrom(&reqId) == 0x11, 1);
         assert!(createdTimeFrom(&reqId) == 0x2233445566, 1);
         assert!(actionFrom(&reqId) == 0x77, 1);
