@@ -122,14 +122,14 @@ module free_tunnel_aptos::atomic_lock {
         req_helpers::checkCreatedTimeFrom(&reqId);
         let action = req_helpers::actionFrom(&reqId);
         assert!(action & 0x0f == 1, ENOT_LOCK_MINT);
-        assert!(!storeA.proposedLock.contains(reqId), EINVALID_REQ_ID);
+        assert!(!table::contains(&storeA.proposedLock, reqId), EINVALID_REQ_ID);
 
         let proposerAddress = signer::address_of(proposer);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_PROPOSER);
 
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
-        storeA.proposedLock.add(reqId, proposerAddress);
+        table::add(&mut storeA.proposedLock, reqId, proposerAddress);
 
         let metadata = req_helpers::tokenMetadataFrom(&reqId);
         let assetToLock = primary_fungible_store::withdraw(proposer, metadata, amount);
@@ -147,7 +147,7 @@ module free_tunnel_aptos::atomic_lock {
         exeIndex: u64,
     ) acquires AtomicLockStorage {
         let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
-        let proposerAddress = *storeA.proposedLock.borrow(reqId);
+        let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
@@ -155,16 +155,16 @@ module free_tunnel_aptos::atomic_lock {
             message, r, yParityAndS, executors, exeIndex,
         );
 
-        *storeA.proposedLock.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
+        *table::borrow_mut(&mut storeA.proposedLock, reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom(&reqId);
         let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        if (storeA.lockedBalanceOf.contains(tokenIndex)) {
-            let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
-            *storeA.lockedBalanceOf.borrow_mut(tokenIndex) = originalAmount + amount;
+        if (table::contains(&storeA.lockedBalanceOf, tokenIndex)) {
+            let originalAmount = *table::borrow(&storeA.lockedBalanceOf, tokenIndex);
+            *table::borrow_mut(&mut storeA.lockedBalanceOf, tokenIndex) = originalAmount + amount;
         } else {
-            storeA.lockedBalanceOf.add(tokenIndex, amount);
+            table::add(&mut storeA.lockedBalanceOf, tokenIndex, amount);
         };
         event::emit(TokenLockExecuted{ reqId, proposer: proposerAddress });
     }
@@ -175,13 +175,13 @@ module free_tunnel_aptos::atomic_lock {
         reqId: vector<u8>,
     ) acquires AtomicLockStorage {
         let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
-        let proposerAddress = *storeA.proposedLock.borrow(reqId);
+        let proposerAddress = *table::borrow(&storeA.proposedLock, reqId);
         assert!(proposerAddress != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
             now_seconds() > req_helpers::createdTimeFrom(&reqId) + EXPIRE_PERIOD(),
             EWAIT_UNTIL_EXPIRED,
         );
-        storeA.proposedLock.remove(reqId);
+        table::remove(&mut storeA.proposedLock, reqId);
 
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
@@ -203,14 +203,14 @@ module free_tunnel_aptos::atomic_lock {
         req_helpers::assertFromChainOnly(&reqId);
         req_helpers::checkCreatedTimeFrom(&reqId);
         assert!(req_helpers::actionFrom(&reqId) & 0x0f == 2, ENOT_BURN_UNLOCK);
-        assert!(!storeA.proposedUnlock.contains(reqId), EINVALID_REQ_ID);
+        assert!(!table::contains(&storeA.proposedUnlock, reqId), EINVALID_REQ_ID);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_RECIPIENT);
 
         let amount = req_helpers::amountFrom(&reqId);
         let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
-        let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
-        *storeA.lockedBalanceOf.borrow_mut(tokenIndex) = originalAmount - amount;
-        storeA.proposedUnlock.add(reqId, recipient);
+        let originalAmount = *table::borrow(&storeA.lockedBalanceOf, tokenIndex);
+        *table::borrow_mut(&mut storeA.lockedBalanceOf, tokenIndex) = originalAmount - amount;
+        table::add(&mut storeA.proposedUnlock, reqId, recipient);
         event::emit(TokenUnlockProposed{ reqId, recipient });
     }
 
@@ -224,7 +224,7 @@ module free_tunnel_aptos::atomic_lock {
         exeIndex: u64,
     ) acquires AtomicLockStorage {
         let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
-        let recipient = *storeA.proposedUnlock.borrow(reqId);
+        let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
@@ -232,7 +232,7 @@ module free_tunnel_aptos::atomic_lock {
             message, r, yParityAndS, executors, exeIndex,
         );
 
-        *storeA.proposedUnlock.borrow_mut(reqId) = EXECUTED_PLACEHOLDER;
+        *table::borrow_mut(&mut storeA.proposedUnlock, reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
@@ -249,18 +249,18 @@ module free_tunnel_aptos::atomic_lock {
         reqId: vector<u8>,
     ) acquires AtomicLockStorage {
         let storeA = borrow_global_mut<AtomicLockStorage>(get_store_address());
-        let recipient = *storeA.proposedUnlock.borrow(reqId);
+        let recipient = *table::borrow(&storeA.proposedUnlock, reqId);
         assert!(recipient != EXECUTED_PLACEHOLDER, EINVALID_REQ_ID);
         assert!(
             now_seconds() > req_helpers::createdTimeFrom(&reqId) + EXPIRE_EXTRA_PERIOD(),
             EWAIT_UNTIL_EXPIRED,
         );
 
-        storeA.proposedUnlock.remove(reqId);
+        table::remove(&mut storeA.proposedUnlock, reqId);
         let amount = req_helpers::amountFrom(&reqId);
         let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
-        let originalAmount = *storeA.lockedBalanceOf.borrow(tokenIndex);
-        *storeA.lockedBalanceOf.borrow_mut(tokenIndex) = originalAmount + amount;
+        let originalAmount = *table::borrow(&storeA.lockedBalanceOf, tokenIndex);
+        *table::borrow_mut(&mut storeA.lockedBalanceOf, tokenIndex) = originalAmount + amount;
         event::emit(TokenUnlockCancelled{ reqId, recipient });
     }
 

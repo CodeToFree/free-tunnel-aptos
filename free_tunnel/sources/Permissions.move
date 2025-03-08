@@ -103,7 +103,7 @@ module free_tunnel_aptos::permissions {
 
     public(friend) fun assertOnlyProposer(sender: &signer) acquires PermissionsStorage {
         let storeP = borrow_global<PermissionsStorage>(@free_tunnel_aptos);
-        assert!(storeP._proposerIndex.contains(signer::address_of(sender)), ENOT_PROPOSER);
+        assert!(table::contains(&storeP._proposerIndex, signer::address_of(sender)), ENOT_PROPOSER);
     }
 
     public(friend) fun initAdminInternal(admin: address) acquires PermissionsStorage {
@@ -127,37 +127,37 @@ module free_tunnel_aptos::permissions {
 
     public(friend) fun addProposerInternal(proposer: address) acquires PermissionsStorage {
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
-        assert!(!storeP._proposerIndex.contains(proposer), EALREADY_PROPOSER);
-        storeP._proposerList.push_back(proposer);
-        storeP._proposerIndex.add(proposer, storeP._proposerList.length());
+        assert!(!table::contains(&storeP._proposerIndex, proposer), EALREADY_PROPOSER);
+        vector::push_back(&mut storeP._proposerList, proposer);
+        table::add(&mut storeP._proposerIndex, proposer, vector::length(&storeP._proposerList));
         event::emit(ProposerAdded { proposer });
     }
 
     public entry fun removeProposer(sender: &signer, proposer: address) acquires PermissionsStorage {
         assertOnlyAdmin(sender);
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
-        assert!(storeP._proposerIndex.contains(proposer), ENOT_EXISTING_PROPOSER);
-        let index = storeP._proposerIndex.remove(proposer);
-        let len = storeP._proposerList.length();
+        assert!(table::contains(&storeP._proposerIndex, proposer), ENOT_EXISTING_PROPOSER);
+        let index = table::remove(&mut storeP._proposerIndex, proposer);
+        let len = vector::length(&storeP._proposerList);
         if (index < len) {
-            let lastProposer = storeP._proposerList[len - 1];
-            storeP._proposerList[index - 1] = lastProposer;
-            *storeP._proposerIndex.borrow_mut(lastProposer) = index;
+            let lastProposer = *vector::borrow(&storeP._proposerList, len - 1);
+            *vector::borrow_mut(&mut storeP._proposerList, index - 1) = lastProposer;
+            *table::borrow_mut(&mut storeP._proposerIndex, lastProposer) = index;
         };
-        storeP._proposerList.pop_back();
+        vector::pop_back(&mut storeP._proposerList);
         event::emit(ProposerRemoved { proposer });
     }
 
     public(friend) fun initExecutorsInternal(executors: vector<vector<u8>>, threshold: u64) acquires PermissionsStorage {
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
         assertEthAddressList(&executors);
-        assert!(threshold <= executors.length(), ENOT_MEET_THRESHOLD);
-        assert!(storeP._exeActiveSinceForIndex.length() == 0, EEXECUTORS_ALREADY_INITIALIZED);
+        assert!(threshold <= vector::length(&executors), ENOT_MEET_THRESHOLD);
+        assert!(vector::length(&storeP._exeActiveSinceForIndex) == 0, EEXECUTORS_ALREADY_INITIALIZED);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
         checkExecutorsNotDuplicated(executors);
-        storeP._executorsForIndex.push_back(executors);
-        storeP._exeThresholdForIndex.push_back(threshold);
-        storeP._exeActiveSinceForIndex.push_back(1);
+        vector::push_back(&mut storeP._executorsForIndex, executors);
+        vector::push_back(&mut storeP._exeThresholdForIndex, threshold);
+        vector::push_back(&mut storeP._exeActiveSinceForIndex, 1);
         event::emit(ExecutorsUpdated { executors, threshold, activeSince: 1, exeIndex: 0 });
     }
 
@@ -173,7 +173,7 @@ module free_tunnel_aptos::permissions {
     ) acquires PermissionsStorage {
         assertEthAddressList(&newExecutors);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
-        assert!(threshold <= newExecutors.length(), ENOT_MEET_THRESHOLD);
+        assert!(threshold <= vector::length(&newExecutors), ENOT_MEET_THRESHOLD);
         assert!(
             activeSince > now_seconds() + 36 * 3600,  // 36 hours
             EACTIVE_SINCE_SHOULD_AFTER_36H,
@@ -185,49 +185,49 @@ module free_tunnel_aptos::permissions {
         checkExecutorsNotDuplicated(newExecutors);
 
         let msg = vector::empty<u8>();
-        msg.append(ETH_SIGN_HEADER());
-        msg.append(smallU64ToString(
-            3 + BRIDGE_CHANNEL().length() + (29 + 43 * newExecutors.length()) 
+        vector::append(&mut msg, ETH_SIGN_HEADER());
+        vector::append(&mut msg, smallU64ToString(
+            3 + vector::length(&BRIDGE_CHANNEL()) + (29 + 43 * vector::length(&newExecutors)) 
             + (12 + smallU64Log10(threshold) + 1) + (15 + 10) + (25 + smallU64Log10(exeIndex) + 1)
         ));
-        msg.append(b"[");
-        msg.append(BRIDGE_CHANNEL());
-        msg.append(b"]\n");
-        msg.append(b"Sign to update executors to:\n");
-        msg.append(joinAddressList(&newExecutors));
-        msg.append(b"Threshold: ");
-        msg.append(smallU64ToString(threshold));
-        msg.append(b"\n");
-        msg.append(b"Active since: ");
-        msg.append(smallU64ToString(activeSince));
-        msg.append(b"\n");
-        msg.append(b"Current executors index: ");
-        msg.append(smallU64ToString(exeIndex));
+        vector::append(&mut msg, b"[");
+        vector::append(&mut msg, BRIDGE_CHANNEL());
+        vector::append(&mut msg, b"]\n");
+        vector::append(&mut msg, b"Sign to update executors to:\n");
+        vector::append(&mut msg, joinAddressList(&newExecutors));
+        vector::append(&mut msg, b"Threshold: ");
+        vector::append(&mut msg, smallU64ToString(threshold));
+        vector::append(&mut msg, b"\n");
+        vector::append(&mut msg, b"Active since: ");
+        vector::append(&mut msg, smallU64ToString(activeSince));
+        vector::append(&mut msg, b"\n");
+        vector::append(&mut msg, b"Current executors index: ");
+        vector::append(&mut msg, smallU64ToString(exeIndex));
 
         checkMultiSignatures(msg, r, yParityAndS, executors, exeIndex);
 
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
         let newIndex = exeIndex + 1;
-        if (newIndex == storeP._exeActiveSinceForIndex.length()) {
-            storeP._executorsForIndex.push_back(newExecutors);
-            storeP._exeThresholdForIndex.push_back(threshold);
-            storeP._exeActiveSinceForIndex.push_back(activeSince);
+        if (newIndex == vector::length(&storeP._exeActiveSinceForIndex)) {
+            vector::push_back(&mut storeP._executorsForIndex, newExecutors);
+            vector::push_back(&mut storeP._exeThresholdForIndex, threshold);
+            vector::push_back(&mut storeP._exeActiveSinceForIndex, activeSince);
         } else {
             assert!(
-                activeSince >= storeP._exeActiveSinceForIndex[newIndex], 
+                activeSince >= *vector::borrow(&storeP._exeActiveSinceForIndex, newIndex), 
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
             assert!(
-                threshold >= storeP._exeThresholdForIndex[newIndex], 
+                threshold >= *vector::borrow(&storeP._exeThresholdForIndex, newIndex), 
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
             assert!(
-                cmpAddrList(newExecutors, storeP._executorsForIndex[newIndex]), 
+                cmpAddrList(newExecutors, *vector::borrow(&storeP._executorsForIndex, newIndex)), 
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
-            storeP._executorsForIndex[newIndex] = newExecutors;
-            storeP._exeThresholdForIndex[newIndex] = threshold;
-            storeP._exeActiveSinceForIndex[newIndex] = activeSince;
+            *vector::borrow_mut(&mut storeP._executorsForIndex, newIndex) = newExecutors;
+            *vector::borrow_mut(&mut storeP._exeThresholdForIndex, newIndex) = threshold;
+            *vector::borrow_mut(&mut storeP._exeActiveSinceForIndex, newIndex) = activeSince;
         };
         event::emit(ExecutorsUpdated { executors: newExecutors, threshold, activeSince, exeIndex: newIndex });
     }
@@ -236,9 +236,9 @@ module free_tunnel_aptos::permissions {
     fun joinAddressList(ethAddrs: &vector<vector<u8>>): vector<u8> {
         let result = vector::empty<u8>();
         let i = 0;
-        while (i < ethAddrs.length()) {
-            result.append(hexToString(&ethAddrs[i], true));
-            result.append(b"\n");
+        while (i < vector::length(ethAddrs)) {
+            vector::append(&mut result, hexToString(vector::borrow(ethAddrs, i), true));
+            vector::append(&mut result, b"\n");
             i = i + 1;
         };
         result
@@ -247,24 +247,24 @@ module free_tunnel_aptos::permissions {
     fun addressToU256(addr: vector<u8>): u256 {
         let value = 0;
         let i = 0;
-        while (i < addr.length()) {
+        while (i < vector::length(&addr)) {
             value = value << 8;
-            value = value + (addr[i] as u256);
+            value = value + (*vector::borrow(&addr, i) as u256);
             i = i + 1;
         };
         value
     }
 
     fun cmpAddrList(list1: vector<vector<u8>>, list2: vector<vector<u8>>): bool {
-        if (list1.length() > list2.length()) {
+        if (vector::length(&list1) > vector::length(&list2)) {
             true
-        } else if (list1.length() < list2.length()) {
+        } else if (vector::length(&list1) < vector::length(&list2)) {
             false
         } else {
             let i = 0;
-            while (i < list1.length()) {
-                let addr1U256 = addressToU256(list1[i]);
-                let addr2U256 = addressToU256(list2[i]);
+            while (i < vector::length(&list1)) {
+                let addr1U256 = addressToU256(*vector::borrow(&list1, i));
+                let addr2U256 = addressToU256(*vector::borrow(&list2, i));
                 if (addr1U256 > addr2U256) {
                     return true
                 } else if (addr1U256 < addr2U256) {
@@ -283,23 +283,23 @@ module free_tunnel_aptos::permissions {
         executors: vector<vector<u8>>,
         exeIndex: u64,
     ) acquires PermissionsStorage {
-        assert!(r.length() == yParityAndS.length(), EARRAY_LENGTH_NOT_EQUAL);
-        assert!(r.length() == executors.length(), EARRAY_LENGTH_NOT_EQUAL);
+        assert!(vector::length(&r) == vector::length(&yParityAndS), EARRAY_LENGTH_NOT_EQUAL);
+        assert!(vector::length(&r) == vector::length(&executors), EARRAY_LENGTH_NOT_EQUAL);
         checkExecutorsForIndex(&executors, exeIndex);
         let i = 0;
-        while (i < executors.length()) {
-            checkSignature(msg, r[i], yParityAndS[i], executors[i]);
+        while (i < vector::length(&executors)) {
+            checkSignature(msg, *vector::borrow(&r, i), *vector::borrow(&yParityAndS, i), *vector::borrow(&executors, i));
             i = i + 1;
         };
     }
 
     fun checkExecutorsNotDuplicated(executors: vector<vector<u8>>) {
         let i = 0;
-        while (i < executors.length()) {
-            let executor = executors[i];
+        while (i < vector::length(&executors)) {
+            let executor = *vector::borrow(&executors, i);
             let j = 0;
             while (j < i) {
-                assert!(executors[j] != executor, EDUPLICATED_EXECUTORS);
+                assert!(*vector::borrow(&executors, j) != executor, EDUPLICATED_EXECUTORS);
                 j = j + 1;
             };
             i = i + 1;
@@ -310,30 +310,30 @@ module free_tunnel_aptos::permissions {
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
         assertEthAddressList(executors);
         assert!(
-            executors.length() >= storeP._exeThresholdForIndex[exeIndex], 
+            vector::length(executors) >= *vector::borrow(&storeP._exeThresholdForIndex, exeIndex), 
             ENOT_MEET_THRESHOLD
         );
-        let activeSince = storeP._exeActiveSinceForIndex[exeIndex];
+        let activeSince = *vector::borrow(&storeP._exeActiveSinceForIndex, exeIndex);
         assert!(activeSince < now_seconds(), EEXECUTORS_NOT_YET_ACTIVE);
 
-        if (storeP._exeActiveSinceForIndex.length() > exeIndex + 1) {
-            let nextActiveSince = storeP._exeActiveSinceForIndex[exeIndex + 1];
+        if (vector::length(&storeP._exeActiveSinceForIndex) > exeIndex + 1) {
+            let nextActiveSince = *vector::borrow(&storeP._exeActiveSinceForIndex, exeIndex + 1);
             assert!(nextActiveSince > now_seconds(), EEXECUTORS_OF_NEXT_INDEX_IS_ACTIVE);
         };
 
-        let currentExecutors = storeP._executorsForIndex[exeIndex];
+        let currentExecutors = *vector::borrow(&storeP._executorsForIndex, exeIndex);
         let i = 0;
-        while (i < executors.length()) {
-            let executor = executors[i];
+        while (i < vector::length(executors)) {
+            let executor = *vector::borrow(executors, i);
             let j = 0;
             while (j < i) {
-                assert!(executors[j] != executor, EDUPLICATED_EXECUTORS);
+                assert!(*vector::borrow(executors, j) != executor, EDUPLICATED_EXECUTORS);
                 j = j + 1;
             };
             let isExecutor = false;
             let j = 0;
-            while (j < currentExecutors.length()) {
-                if (executor == currentExecutors[j]) {
+            while (j < vector::length(&currentExecutors)) {
+                if (executor == *vector::borrow(&currentExecutors, j)) {
                     isExecutor = true;
                     break
                 };
@@ -346,9 +346,9 @@ module free_tunnel_aptos::permissions {
 
     fun checkSignature(msg: vector<u8>, r: vector<u8>, yParityAndS: vector<u8>, ethSigner: vector<u8>) {
         assert!(ethSigner != ETH_ZERO_ADDRESS, ESIGNER_CANNOT_BE_EMPTY_ADDRESS);
-        assert!(r.length() == 32, EINVALID_LENGTH);
-        assert!(yParityAndS.length() == 32, EINVALID_LENGTH);
-        assert!(ethSigner.length() == 20, EINVALID_LENGTH);
+        assert!(vector::length(&r) == 32, EINVALID_LENGTH);
+        assert!(vector::length(&yParityAndS) == 32, EINVALID_LENGTH);
+        assert!(vector::length(&ethSigner) == 20, EINVALID_LENGTH);
         let digest = aptos_hash::keccak256(msg);
         let recoveredEthAddr = recoverEthAddress(digest, r, yParityAndS);
         assert!(recoveredEthAddr == ethSigner, EINVALID_SIGNATURE);
@@ -364,7 +364,7 @@ module free_tunnel_aptos::permissions {
         let expected =
         b"0x00112233445566778899aabbccddeeff00112233\n0x000000000000000000000000000000000000beef\n";
         assert!(result == expected, 1);
-        assert!(expected.length() == 43 * 2, 1);
+        assert!(vector::length(&expected) == 43 * 2, 1);
     }
 
     #[test]
