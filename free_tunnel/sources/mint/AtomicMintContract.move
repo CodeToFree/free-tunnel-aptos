@@ -295,37 +295,4 @@ module free_tunnel_aptos::atomic_mint {
         event::emit(TokenBurnCancelled{ reqId, proposer: proposerAddress });
     }
 
-
-    // =========================== Test ===========================
-    // #[test(coinAdmin = @free_tunnel_aptos)]
-    // fun testAddToken(coinAdmin: &signer) {
-    //     // initialize
-    //     init_module(coinAdmin);
-    //     req_helpers::initReqHelpersStorage(coinAdmin);
-    //     permissions::initPermissionsStorage(coinAdmin);
-
-    //     // add token
-    //     addToken(coinAdmin, 15, );
-    // }
-
-    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    // fun testRemoveToken(coinAdmin: &signer, minter: &signer) {
-    //     testAddToken(coinAdmin, minter);
-    //     removeToken<FakeMoney>(coinAdmin, 15);
-    // }
-
-    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    // #[expected_failure]
-    // fun testAddTokenRepeatFailed(coinAdmin: &signer, minter: &signer) {
-    //     testAddToken(coinAdmin, minter);
-    //     addToken<FakeMoney>(coinAdmin, 15);
-    // }
-
-    // #[test(coinAdmin = @free_tunnel_aptos, minter = @0x22ee)]
-    // #[expected_failure]
-    // fun testRemoveTokenRepeatFailed(coinAdmin: &signer, minter: &signer) {
-    //     testRemoveToken(coinAdmin, minter);
-    //     removeToken<FakeMoney>(coinAdmin, 15);
-    // }
-
 }
