@@ -105,7 +105,7 @@ module free_tunnel_aptos::utils {
         let ethAddr = vector::empty<u8>();
         let i = 12;
         while (i < 32) {
-            ethAddr.push_back(hash[i]);
+            vector::push_back(&mut ethAddr, *vector::borrow(&hash, i));
             i = i + 1;
         };
         ethAddr
@@ -114,7 +114,7 @@ module free_tunnel_aptos::utils {
     public fun recoverEthAddress(digest: vector<u8>, r: vector<u8>, yParityAndS: vector<u8>): vector<u8> {
         let s = copy yParityAndS;
         let v = *vector::borrow_mut(&mut s, 0) >> 7;
-        *vector::borrow_mut(&mut s, 0) = *vector::borrow_mut(&mut s, 0) & 0x7f;
+        *vector::borrow_mut(&mut s, 0) = *vector::borrow(&mut s, 0) & 0x7f;
         vector::append(&mut r, s);
         let ecdsaSig = secp256k1::ecdsa_signature_from_bytes(r);
         let pk = secp256k1::ecdsa_recover(digest, v, &ecdsaSig);
