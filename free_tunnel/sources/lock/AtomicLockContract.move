@@ -104,7 +104,7 @@ module free_tunnel_aptos::atomic_lock {
         req_helpers::addTokenInternal(tokenIndex, tokenMetadata);
     }
     
-    public entry fun removeTokenInternal(
+    public entry fun removeToken(
         admin: &signer,
         tokenIndex: u8,
     ) {
