@@ -103,10 +103,7 @@ module free_tunnel_rooch::permissions {
 
     public(friend) fun assertOnlyProposer(sender: &signer) {
         let storeP = account::borrow_resource<PermissionsStorage>(@free_tunnel_rooch);
-        assert!(table::contains(
-            &storeP._proposerIndex, 
-            signer::address_of(sender)
-        ), ENOT_PROPOSER);
+        assert!(table::contains(&storeP._proposerIndex, signer::address_of(sender)), ENOT_PROPOSER);
     }
 
     public(friend) fun initAdminInternal(admin: address) {
