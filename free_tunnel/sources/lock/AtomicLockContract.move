@@ -85,7 +85,7 @@ module free_tunnel_rooch::atomic_lock {
     }
 
 
-    // =========================== Functions ===========================
+    // =========================== Token Functions ===========================
     public entry fun addToken<CoinType: key + store>(
         admin: &signer,
         tokenIndex: u8,
@@ -111,6 +111,7 @@ module free_tunnel_rooch::atomic_lock {
     }
 
 
+    // =========================== Lock/Unlock Functions ===========================
     public entry fun proposeLock<CoinType: key + store>(
         proposer: &signer,
         reqId: vector<u8>,

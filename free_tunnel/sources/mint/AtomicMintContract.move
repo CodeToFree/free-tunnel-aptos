@@ -88,7 +88,7 @@ module free_tunnel_rooch::atomic_mint {
     }
 
 
-    // =========================== Functions ===========================
+    // =========================== Token Functions ===========================
     public entry fun addToken<CoinType: key + store>(
         admin: &signer,
         tokenIndex: u8,
@@ -106,18 +106,6 @@ module free_tunnel_rooch::atomic_mint {
     }
 
 
-    public entry fun transferMinterCap<CoinType: key + store>(
-        _minter: &signer,
-        tokenIndex: u8,
-        minterCapObj: Object<MinterCap<CoinType>>,
-    ) {
-        req_helpers::checkTokenType<CoinType>(tokenIndex);
-        let coinStorage = 
-            account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
-        option::fill(&mut coinStorage.minterCap, minterCapObj);
-    }
-
-
     public entry fun removeToken<CoinType: key + store>(
         admin: &signer,
         tokenIndex: u8,
@@ -132,6 +120,19 @@ module free_tunnel_rooch::atomic_mint {
     }
 
 
+    public entry fun transferMinterCap<CoinType: key + store>(
+        _minter: &signer,
+        tokenIndex: u8,
+        minterCapObj: Object<MinterCap<CoinType>>,
+    ) {
+        req_helpers::checkTokenType<CoinType>(tokenIndex);
+        let coinStorage = 
+            account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
+        option::fill(&mut coinStorage.minterCap, minterCapObj);
+    }
+
+
+    // =========================== Mint/Burn Functions ===========================
     public entry fun proposeMint<CoinType: key + store>(
         proposer: &signer,
         reqId: vector<u8>,
