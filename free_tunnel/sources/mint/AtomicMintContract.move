@@ -84,7 +84,7 @@ module free_tunnel_aptos::atomic_mint {
     }
 
 
-    // =========================== Functions ===========================
+    // =========================== Store Functions ===========================
     #[view]
     public fun get_store_address(): address {
         object::create_object_address(&DEPLOYER, b"atomic_mint")
@@ -95,6 +95,7 @@ module free_tunnel_aptos::atomic_mint {
         object::generate_signer_for_extending(&storeA.store_contract_signer_extend_ref)
     }
 
+    // =========================== Token Functions ===========================
     public entry fun addToken(
         admin: &signer, 
         tokenIndex: u8, 
@@ -113,6 +114,7 @@ module free_tunnel_aptos::atomic_mint {
     }
 
 
+    // =========================== Mint/Burn Functions ===========================
     public entry fun proposeMint(
         proposer: &signer,
         reqId: vector<u8>,

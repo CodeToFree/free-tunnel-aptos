@@ -93,7 +93,7 @@ module free_tunnel_aptos::req_helpers {
     }
 
     public(friend) fun createdTimeFrom(reqId: &vector<u8>): u64 {
-        let time = *vector::borrow(reqId, 1) as u64;
+        let time = (*vector::borrow(reqId, 1) as u64);
         let i = 2;
         while (i < 6) {
             time = (time << 8) + (*vector::borrow(reqId, i) as u64);
@@ -132,7 +132,7 @@ module free_tunnel_aptos::req_helpers {
     }
 
     fun decodeAmount(reqId: &vector<u8>): u64 {
-        let amount = *vector::borrow(reqId, 8) as u64;
+        let amount = (*vector::borrow(reqId, 8) as u64);
         let i = 9;
         while (i < 16) {
             amount = (amount << 8) + (*vector::borrow(reqId, i) as u64);

@@ -93,7 +93,7 @@ module free_tunnel_aptos::utils {
         let i = 0;
         while (i < vector::length(hex)) {
             let byte = *vector::borrow(hex, i);
-            vector::append(&mut str, *vector::borrow(&HEX_TO_STRING_DICT, byte as u64));
+            vector::append(&mut str, *vector::borrow(&HEX_TO_STRING_DICT, (byte as u64)));
             i = i + 1;
         };
         str
@@ -111,11 +111,12 @@ module free_tunnel_aptos::utils {
         ethAddr
     }
 
-    public fun recoverEthAddress(digest: vector<u8>, r: vector<u8>, yParityAndS: vector<u8>): vector<u8> {
+    public fun recoverEthAddress(msg: vector<u8>, r: vector<u8>, yParityAndS: vector<u8>): vector<u8> {
         let s = copy yParityAndS;
         let v = *vector::borrow_mut(&mut s, 0) >> 7;
-        *vector::borrow_mut(&mut s, 0) = *vector::borrow(&mut s, 0) & 0x7f;
+        *vector::borrow_mut(&mut s, 0) = *vector::borrow(&s, 0) & 0x7f;
         vector::append(&mut r, s);
+        let digest = aptos_hash::keccak256(msg);
         let ecdsaSig = secp256k1::ecdsa_signature_from_bytes(r);
         let pk = secp256k1::ecdsa_recover(digest, v, &ecdsaSig);
         if (option::is_some(&pk)) {
@@ -244,10 +245,9 @@ module free_tunnel_aptos::utils {
     #[test]
     fun testRecoverEthAddress() {
         let message = b"stupid";
-        let digest = aptos_hash::keccak256(message);
         let r = x"6fd862958c41d532022e404a809e92ec699bd0739f8d782ca752b07ff978f341";
         let yParityAndS = x"f43065a96dc53a21b4eb4ce96a84a7c4103e3485b0c87d868df545fcce0f3983";
-        let ethAddr = recoverEthAddress(digest, r, yParityAndS);
+        let ethAddr = recoverEthAddress(message, r, yParityAndS);
         assert!(ethAddr == x"2eF8a51F8fF129DBb874A0efB021702F59C1b211", 1);
     }
 

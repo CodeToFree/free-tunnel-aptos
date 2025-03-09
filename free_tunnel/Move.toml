@@ -3,10 +3,13 @@ name = "free_tunnel_aptos"
 version = "1.0.0"
 authors = []
 
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", rev = "mainnet", subdir = "aptos-framework" }
+oft = { local = "../../USDa-aptos/oft-aptos-move" }
+
 [addresses]
 std = "0x1"
 oft = "0x5053429373cfa823a97fedfd3d07e4f14c0e8c036027d61f3c8a57221643f643"
-free_tunnel_aptos = "0xbc628ab9070b1ecb037b546cc61930ca78a8bc9d389c934ddc952eb943761112"
 oft_admin = "0x5053429373cfa823a97fedfd3d07e4f14c0e8c036027d61f3c8a57221643f643"
 oft_common = "0xa4c83e48703381fc23d03e3cb89088dbd363c51427fe52f352ce1668b4d146cd"
 router_node_0 = "0x7a19f544a6db990a1bfa6d84d0f53f918cd41765ec5b0d67abbdb78455f1d43a"
@@ -32,42 +35,4 @@ dvn_fee_lib_router_1 = "0x5248f0a5e6f1629e7e12dfb5d87a2b1ee3adf3f3cbf0c7a2b66705
 executor_fee_lib_0 = "0x4123c50265067995272e998193638aaf876d75454b2aba50d55d950b2236ff4e"
 dvn_fee_lib_0 = "0x9b77c6ad73d3e642f4c59ff191e1b460a7f4a16a67558edba1a744b4d6a88127"
 dvn = "0x756f8ab056688d22687740f4a9aeec3b361170b28d08b719e28c4d38eed1043e"
-
-[dev-addresses]
-# oft = "0x302814823"
-# oft_admin = "0x12321241"
-# oft_common = "0x30281482332"
-# router_node_0 = "0x10000f"
-# simple_msglib = "0x100011"
-# blocked_msglib = "0x100001"
-# uln_302 = "0x100013"
-# router_node_1 = "0x100010"
-# endpoint_v2_common = "0x100007"
-# endpoint_v2 = "0x100006"
-# layerzero_admin = "0x200001"
-# layerzero_treasury_admin = "0x200002"
-# msglib_types = "0x10000b"
-# treasury = "0x100012"
-# worker_peripherals = "0x3000"
-# price_feed_router_0 = "0x10000d"
-# price_feed_router_1 = "0x10000e"
-# price_feed_module_0 = "0x10000c"
-# worker_common = "0x100014"
-# executor_fee_lib_router_0 = "0x100009"
-# executor_fee_lib_router_1 = "0x10000a"
-# dvn_fee_lib_router_0 = "0x100004"
-# dvn_fee_lib_router_1 = "0x100005"
-# executor_fee_lib_0 = "0x100008"
-# dvn_fee_lib_0 = "0x100003"
-# dvn = "0x100002"
-# free_tunnel_aptos = "0x200011"
-
-[dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-framework.git"
-rev = "mainnet"
-subdir = "aptos-framework"
-
-[dependencies.oft]
-local = "../../USDa-aptos/oft-aptos-move"
-
-[dev-dependencies]
+free_tunnel_aptos = "_"

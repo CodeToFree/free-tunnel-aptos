@@ -1,7 +1,6 @@
 module free_tunnel_aptos::permissions {
 
     // =========================== Packages ===========================
-    use std::aptos_hash;
     use std::event;
     use std::signer;
     use std::table;
@@ -349,8 +348,7 @@ module free_tunnel_aptos::permissions {
         assert!(vector::length(&r) == 32, EINVALID_LENGTH);
         assert!(vector::length(&yParityAndS) == 32, EINVALID_LENGTH);
         assert!(vector::length(&ethSigner) == 20, EINVALID_LENGTH);
-        let digest = aptos_hash::keccak256(msg);
-        let recoveredEthAddr = recoverEthAddress(digest, r, yParityAndS);
+        let recoveredEthAddr = recoverEthAddress(msg, r, yParityAndS);
         assert!(recoveredEthAddr == ethSigner, EINVALID_SIGNATURE);
     }
 
