@@ -56,17 +56,16 @@ Since the `free_tunnel_rooch` and `minter_manager` are not filled in the `Move.t
 ### Project Structure
 ```
 .
-├── atomic/                 # Core bridge protocol
-│   ├── sources/
-│   │   ├── lock/          # Lock contract implementation
-│   │   ├── mint/          # Mint contract implementation
-│   │   ├── Permissions.move
-│   │   ├── ReqHelpers.move
-│   │   └── Utils.move
-│   └── test/
-│       └── integrationTest.sh
-│
-└── minter_manager/        # Minter management implementation
+├── minter_manager/             # Minter management implementation
+│   └── sources/
+│       └── MinterManager.move
+└── free_tunnel/                # Core bridge protocol
     └── sources/
-        └── MinterManager.move
+        ├── Permissions.move
+        ├── ReqHelpers.move
+        ├── Utils.move
+        ├── lock/
+        │   └── AtomicLockContract.move
+        └── mint/
+            └── AtomicMintContract.move
 ```

@@ -59,7 +59,7 @@ module minter_manager::minter_manager {
         minterCapId: ObjectID,
     }
 
-    
+
     // =========================== Coin Admin Functions ===========================
     public entry fun transferAdmin<CoinType: key + store>(
         coinAdmin: &signer,

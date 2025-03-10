@@ -214,15 +214,15 @@ module free_tunnel_rooch::permissions {
             vector::push_back(&mut storeP._exeActiveSinceForIndex, activeSince);
         } else {
             assert!(
-                activeSince >= *vector::borrow(&storeP._exeActiveSinceForIndex, newIndex), 
+                activeSince >= *vector::borrow(&storeP._exeActiveSinceForIndex, newIndex),
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
             assert!(
-                threshold >= *vector::borrow(&storeP._exeThresholdForIndex, newIndex), 
+                threshold >= *vector::borrow(&storeP._exeThresholdForIndex, newIndex),
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
             assert!(
-                cmpAddrList(newExecutors, *vector::borrow(&storeP._executorsForIndex, newIndex)), 
+                cmpAddrList(newExecutors, *vector::borrow(&storeP._executorsForIndex, newIndex)),
                 EFAILED_TO_OVERWRITE_EXISTING_EXECUTORS
             );
             *vector::borrow_mut(&mut storeP._executorsForIndex, newIndex) = newExecutors;
@@ -310,7 +310,7 @@ module free_tunnel_rooch::permissions {
         let storeP = account::borrow_mut_resource<PermissionsStorage>(@free_tunnel_rooch);
         assertEthAddressList(executors);
         assert!(
-            vector::length(executors) >= *vector::borrow(&storeP._exeThresholdForIndex, exeIndex), 
+            vector::length(executors) >= *vector::borrow(&storeP._exeThresholdForIndex, exeIndex),
             ENOT_MEET_THRESHOLD
         );
         let activeSince = *vector::borrow(&storeP._exeActiveSinceForIndex, exeIndex);

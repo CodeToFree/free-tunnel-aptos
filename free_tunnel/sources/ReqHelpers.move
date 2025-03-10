@@ -12,9 +12,9 @@ module free_tunnel_rooch::req_helpers {
     friend free_tunnel_rooch::permissions;
     friend free_tunnel_rooch::atomic_mint;
     friend free_tunnel_rooch::atomic_lock;
-    
 
-    // =========================== Constants ==========================    
+
+    // =========================== Constants ==========================
     // const CHAIN: u8 = 0xa5;     // For Aptos Mainnet
     // const CHAIN: u8 = 0xa6;     // For Movement Mainnet
     const CHAIN: u8 = 0xff;        // For Testnets
@@ -59,7 +59,7 @@ module free_tunnel_rooch::req_helpers {
         tokenIndex: u8,
         tokenType: TypeInfo,
     }
-    
+
     #[event]
     struct TokenRemoved has drop, copy {
         tokenIndex: u8,
@@ -72,7 +72,7 @@ module free_tunnel_rooch::req_helpers {
         let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
 
         assert!(
-            !table::contains(&storeR.tokens, tokenIndex), 
+            !table::contains(&storeR.tokens, tokenIndex),
             ETOKEN_INDEX_OCCUPIED
         );
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);

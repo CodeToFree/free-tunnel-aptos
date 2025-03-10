@@ -8,7 +8,7 @@ module free_tunnel_rooch::atomic_mint {
     use moveos_std::table;
     use moveos_std::object::Object;
     use moveos_std::timestamp::now_seconds;
-    
+
     use rooch_framework::account_coin_store;
     use rooch_framework::coin_store::{Self, CoinStore};
 
@@ -96,7 +96,7 @@ module free_tunnel_rooch::atomic_mint {
     ) {
         permissions::assertOnlyAdmin(admin);
         req_helpers::addTokenInternal<CoinType>(tokenIndex, decimals);
-        if (!account::exists_resource<CoinStorage<CoinType>>(@free_tunnel_rooch)) { 
+        if (!account::exists_resource<CoinStorage<CoinType>>(@free_tunnel_rooch)) {
             let coinStorage = CoinStorage<CoinType> {
                 burningCoins: coin_store::create_coin_store<CoinType>(),
                 minterCap: option::none(),
@@ -189,7 +189,7 @@ module free_tunnel_rooch::atomic_mint {
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
         permissions::checkMultiSignatures(
-            message, r, yParityAndS, executors, exeIndex, 
+            message, r, yParityAndS, executors, exeIndex,
         );
 
         *table::borrow_mut(&mut storeA.proposedMint, reqId) = EXECUTED_PLACEHOLDER;
@@ -201,7 +201,7 @@ module free_tunnel_rooch::atomic_mint {
             account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let minterCapObj = option::borrow_mut(&mut coinStorage.minterCap);
         minter_manager::mint<CoinType>(
-            sender, treasuryCapManagerObj, 
+            sender, treasuryCapManagerObj,
             minterCapObj, amount, recipient
         );
         event::emit(TokenMintExecuted{ reqId, recipient });
@@ -259,7 +259,7 @@ module free_tunnel_rooch::atomic_mint {
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
         table::add(&mut storeA.proposedBurn, reqId, proposerAddress);
-        
+
         let coinStorage = 
             account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let coinToBurn = account_coin_store::withdraw(proposer, amount);
@@ -285,7 +285,7 @@ module free_tunnel_rooch::atomic_mint {
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
         permissions::checkMultiSignatures(
-            message, r, yParityAndS, executors, exeIndex, 
+            message, r, yParityAndS, executors, exeIndex,
         );
 
         *table::borrow_mut(&mut storeA.proposedBurn, reqId) = EXECUTED_PLACEHOLDER;

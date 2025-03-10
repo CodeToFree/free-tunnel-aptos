@@ -10,7 +10,7 @@ module free_tunnel_rooch::atomic_lock {
 
     use rooch_framework::account_coin_store;
     use rooch_framework::coin_store::{Self, CoinStore};
-    
+
     use free_tunnel_rooch::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_rooch::permissions;
 
@@ -100,7 +100,7 @@ module free_tunnel_rooch::atomic_lock {
             account::move_resource_to(admin, coinStorage);
         }
     }
-    
+
 
     public entry fun removeToken<CoinType: key + store>(
         admin: &signer,
@@ -135,7 +135,7 @@ module free_tunnel_rooch::atomic_lock {
         coin_store::deposit(&mut coinStorage.lockedCoins, coinToLock);
         event::emit(TokenLockProposed{ reqId, proposer: proposerAddress });
     }
-    
+
 
     public entry fun executeLock<CoinType: key + store>(
         _sender: &signer,
@@ -184,7 +184,7 @@ module free_tunnel_rooch::atomic_lock {
 
         let amount = req_helpers::amountFrom<CoinType>(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom<CoinType>(&reqId);
-        
+
         let coinStorage = account::borrow_mut_resource<CoinStorage<CoinType>>(@free_tunnel_rooch);
         let coinInside = &mut coinStorage.lockedCoins;
         let coinCancelled = coin_store::withdraw(coinInside, amount);
