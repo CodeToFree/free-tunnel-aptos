@@ -97,8 +97,8 @@ module free_tunnel_aptos::atomic_mint {
 
     // =========================== Token Functions ===========================
     public entry fun addToken(
-        admin: &signer, 
-        tokenIndex: u8, 
+        admin: &signer,
+        tokenIndex: u8,
         tokenMetadata: Object<Metadata>
     ) {
         permissions::assertOnlyAdmin(admin);
@@ -169,7 +169,7 @@ module free_tunnel_aptos::atomic_mint {
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
         permissions::checkMultiSignatures(
-            message, r, yParityAndS, executors, exeIndex, 
+            message, r, yParityAndS, executors, exeIndex,
         );
 
         *table::borrow_mut(&mut storeA.proposedMint, reqId) = EXECUTED_PLACEHOLDER;
@@ -258,7 +258,7 @@ module free_tunnel_aptos::atomic_mint {
 
         let message = req_helpers::msgFromReqSigningMessage(&reqId);
         permissions::checkMultiSignatures(
-            message, r, yParityAndS, executors, exeIndex, 
+            message, r, yParityAndS, executors, exeIndex,
         );
 
         *table::borrow_mut(&mut storeA.proposedBurn, reqId) = EXECUTED_PLACEHOLDER;

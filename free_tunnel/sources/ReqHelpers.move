@@ -12,7 +12,7 @@ module free_tunnel_aptos::req_helpers {
     friend free_tunnel_aptos::permissions;
     friend free_tunnel_aptos::atomic_mint;
     friend free_tunnel_aptos::atomic_lock;
-    
+
 
     // =========================== Constants ==========================
     // const CHAIN: u8 = 0xa5;     // For Aptos Mainnet
@@ -57,7 +57,7 @@ module free_tunnel_aptos::req_helpers {
         tokenIndex: u8,
         tokenMetadata: Object<Metadata>,
     }
-    
+
     #[event]
     struct TokenRemoved has drop, store {
         tokenIndex: u8,
@@ -70,7 +70,7 @@ module free_tunnel_aptos::req_helpers {
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
 
         assert!(
-            !table::contains(&storeR.tokens, tokenIndex), 
+            !table::contains(&storeR.tokens, tokenIndex),
             ETOKEN_INDEX_OCCUPIED
         );
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
