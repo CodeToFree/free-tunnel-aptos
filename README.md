@@ -1,13 +1,12 @@
-# Free Tunnel Aptos
+# Free Tunnel Rooch
 
-A bridge protocol implementation on Aptos blockchain that enables cross-chain token transfers.
+A bridge protocol implementation on Rooch blockchain that enables cross-chain token transfers.
 
 ## Project Structure
 
-The project consists of one main package, and maybe more packages in the future.
+The project consists of two main packages:
 
-### 1. Free Tunnel Package (`/free_tunnel)
-
+### 1. Free Tunnel Package (`/free_tunnel`)
 Core bridge protocol implementation with features:
 - Atomic coin minting and burning
 - Atomic coin locking and unlocking 
@@ -15,30 +14,52 @@ Core bridge protocol implementation with features:
 - Permission management for admin and proposers
 - Support for multiple coin types
 
+### 2. Minter Manager Package (`/minter_manager`)
+Minter management implementation for coin operations.
+
 ## Development
 
 ### Prerequisites
 
-- [Aptos CLI](https://aptos.dev/cli-tools/aptos-cli-tool/install-aptos-cli)
+- [Rooch CLI](https://rooch.network/docs/get-started/installation)
 
 ### Build
 
+Build both packages separately:
+
 ```bash
-cd free_tunnel
-aptos move build
+# Build atomic package
+cd atomic
+rooch move build
+
+# Build minter manager package
+cd minter_manager
+rooch move build
 ```
 
 ### Test
 
+Run tests for each package:
+
 ```bash
+# Test minter manager package
+cd minter_manager
+rooch move test --named-addresses minter_manager="0xaaff"
+
+# Test free tunnel package
 cd free_tunnel
-aptos move test
+rooch move test --named-addresses minter_manager="0xaaff",free_tunnel_rooch="0xbbee"
 ```
+
+Since the `free_tunnel_rooch` and `minter_manager` are not filled in the `Move.toml`, you need to pass them as named addresses in the command.
 
 ### Project Structure
 ```
 .
-└── free_tunnel/
+├── minter_manager/             # Minter management implementation
+│   └── sources/
+│       └── MinterManager.move
+└── free_tunnel/                # Core bridge protocol
     └── sources/
         ├── Permissions.move
         ├── ReqHelpers.move

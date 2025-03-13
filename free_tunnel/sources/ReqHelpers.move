@@ -1,17 +1,17 @@
-module free_tunnel_aptos::req_helpers {
+module free_tunnel_rooch::req_helpers {
 
     // =========================== Packages ===========================
-    use std::event;
-    use std::table;
-    use std::math64;
+    use std::u64;
     use std::vector;
-    use std::timestamp::now_seconds;
-    use aptos_framework::object::Object;
-    use aptos_framework::fungible_asset::{Self, Metadata};
-    use free_tunnel_aptos::utils::{smallU64ToString, hexToString};
-    friend free_tunnel_aptos::permissions;
-    friend free_tunnel_aptos::atomic_mint;
-    friend free_tunnel_aptos::atomic_lock;
+    use moveos_std::account;
+    use moveos_std::event;
+    use moveos_std::table;
+    use moveos_std::timestamp::now_seconds;
+    use moveos_std::type_info::{Self, TypeInfo};
+    use free_tunnel_rooch::utils::{smallU64ToString, hexToString};
+    friend free_tunnel_rooch::permissions;
+    friend free_tunnel_rooch::atomic_mint;
+    friend free_tunnel_rooch::atomic_lock;
 
 
     // =========================== Constants ==========================
@@ -30,7 +30,7 @@ module free_tunnel_aptos::req_helpers {
     const EAMOUNT_CANNOT_BE_ZERO: u64 = 8;
     const ETOKEN_TYPE_MISMATCH: u64 = 9;
 
-    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"Bridge" }
+    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"Rooch Bridge" }
     public(friend) fun PROPOSE_PERIOD(): u64 { 172800 }         // 48 hours
     public(friend) fun EXPIRE_PERIOD(): u64 { 259200 }          // 72 hours
     public(friend) fun EXPIRE_EXTRA_PERIOD(): u64 { 345600 }    // 96 hours
@@ -39,35 +39,37 @@ module free_tunnel_aptos::req_helpers {
 
     // ============================ Storage ===========================
     struct ReqHelpersStorage has key {
-        tokens: table::Table<u8, Object<Metadata>>,
+        tokens: table::Table<u8, TypeInfo>,
+        tokenDecimals: table::Table<u8, u8>,
     }
 
-    fun init_module(admin: &signer) {
+    fun init(admin: &signer) {
         initReqHelpersStorage(admin);
     }
 
     public(friend) fun initReqHelpersStorage(admin: &signer) {
-        move_to(admin, ReqHelpersStorage {
+        account::move_resource_to(admin, ReqHelpersStorage {
             tokens: table::new(),
+            tokenDecimals: table::new(),
         })
     }
 
     #[event]
-    struct TokenAdded has drop, store {
+    struct TokenAdded has drop, copy {
         tokenIndex: u8,
-        tokenMetadata: Object<Metadata>,
+        tokenType: TypeInfo,
     }
 
     #[event]
-    struct TokenRemoved has drop, store {
+    struct TokenRemoved has drop, copy {
         tokenIndex: u8,
-        tokenMetadata: Object<Metadata>,
+        tokenType: TypeInfo,
     }
 
 
     // =========================== Functions ===========================
-    public(friend) fun addTokenInternal(tokenIndex: u8, tokenMetadata: Object<Metadata>) acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun addTokenInternal<CoinType: key>(tokenIndex: u8, decimals: u8) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
 
         assert!(
             !table::contains(&storeR.tokens, tokenIndex),
@@ -75,16 +77,19 @@ module free_tunnel_aptos::req_helpers {
         );
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
 
-        table::add(&mut storeR.tokens, tokenIndex, tokenMetadata);
-        event::emit(TokenAdded { tokenIndex, tokenMetadata });
+        let tokenType = type_info::type_of<CoinType>();
+        table::add(&mut storeR.tokens, tokenIndex, tokenType);
+        table::add(&mut storeR.tokenDecimals, tokenIndex, decimals);
+        event::emit(TokenAdded { tokenIndex, tokenType });
     }
 
-    public(friend) fun removeTokenInternal(tokenIndex: u8) acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun removeTokenInternal(tokenIndex: u8) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
         assert!(tokenIndex > 0, ETOKEN_INDEX_CANNOT_BE_ZERO);
-        let tokenMetadata = table::remove(&mut storeR.tokens, tokenIndex);
-        event::emit(TokenRemoved { tokenIndex, tokenMetadata });
+        let tokenType = table::remove(&mut storeR.tokens, tokenIndex);
+        table::remove(&mut storeR.tokenDecimals, tokenIndex);
+        event::emit(TokenRemoved { tokenIndex, tokenType });
     }
 
     /// `reqId` in format of `version:uint8|createdTime:uint40|action:uint8|tokenIndex:uint8|amount:uint64|from:uint8|to:uint8|(TBD):uint112`
@@ -117,18 +122,19 @@ module free_tunnel_aptos::req_helpers {
         *vector::borrow(reqId, 7)
     }
 
-    public(friend) fun tokenIndexFrom(reqId: &vector<u8>): u8 acquires ReqHelpersStorage {
-        let tokenIndex = decodeTokenIndex(reqId);
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
-        assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
-        tokenIndex
+    public(friend) fun checkTokenType<CoinType>(tokenIndex: u8) {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
+        let tokenTypeExpected = *table::borrow(&storeR.tokens, tokenIndex);
+        let tokenTypeActual = type_info::type_of<CoinType>();
+        assert!(tokenTypeExpected == tokenTypeActual, ETOKEN_TYPE_MISMATCH);
     }
 
-    public(friend) fun tokenMetadataFrom(reqId: &vector<u8>): Object<Metadata> acquires ReqHelpersStorage {
+    public(friend) fun tokenIndexFrom<CoinType>(reqId: &vector<u8>): u8 {
         let tokenIndex = decodeTokenIndex(reqId);
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         assert!(table::contains(&storeR.tokens, tokenIndex), ETOKEN_INDEX_NONEXISTENT);
-        *table::borrow(&storeR.tokens, tokenIndex)
+        checkTokenType<CoinType>(tokenIndex);
+        tokenIndex
     }
 
     fun decodeAmount(reqId: &vector<u8>): u64 {
@@ -142,17 +148,17 @@ module free_tunnel_aptos::req_helpers {
         amount
     }
 
-    public(friend) fun amountFrom(reqId: &vector<u8>): u64 acquires ReqHelpersStorage {
-        let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
+    public(friend) fun amountFrom<CoinType>(reqId: &vector<u8>): u256 {
+        let storeR = account::borrow_mut_resource<ReqHelpersStorage>(@free_tunnel_rooch);
         let amount = decodeAmount(reqId);
         let tokenIndex = decodeTokenIndex(reqId);
-        let decimals = fungible_asset::decimals<Metadata>(*storeR.tokens.borrow(tokenIndex)) as u64;
+        let decimals = *table::borrow(&storeR.tokenDecimals, tokenIndex);
         if (decimals > 6) {
-            amount = amount * math64::pow(10, decimals - 6);
+            amount = amount * u64::pow(10, decimals - 6);
         } else if (decimals < 6) {
-            amount = amount / math64::pow(10, 6 - decimals);
+            amount = amount / u64::pow(10, 6 - decimals);
         };
-        amount
+        (amount as u256)
     }
 
     public(friend) fun msgFromReqSigningMessage(reqId: &vector<u8>): vector<u8> {
@@ -215,7 +221,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage1() {
         // action 1: lock-mint
         let reqId = x"112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n104[Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n110[Rooch Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -223,7 +229,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage2() {
         // action 2: burn-unlock
         let reqId = x"112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n106[Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n112[Rooch Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -231,7 +237,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage3() {
         // action 3: burn-mint
         let reqId = x"112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n104[Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n110[Rooch Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 

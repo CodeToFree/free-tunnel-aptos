@@ -1,16 +1,14 @@
 [package]
-name = "free_tunnel_rooch"
-version = "1.0.0"
-authors = []
+name = "minter_manager"
+version = "0.0.1"
 
 [dependencies]
 MoveStdlib = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/move-stdlib", rev = "main" }
 MoveosStdlib = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/moveos-stdlib", rev = "main" }
 RoochFramework = { git = "https://github.com/rooch-network/rooch.git", subdir = "frameworks/rooch-framework", rev = "main" }
-minter_manager = { local = "../minter_manager" }
 
 [addresses]
 std = "0x1"
 moveos_std = "0x2"
 rooch_framework = "0x3"
-free_tunnel_rooch = "_"
+minter_manager = "_"

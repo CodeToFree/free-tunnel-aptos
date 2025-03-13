@@ -1,9 +1,8 @@
-module free_tunnel_aptos::utils {
+module free_tunnel_rooch::utils {
 
     use std::vector;
-    use std::aptos_hash;
-    use std::option;
-    use std::secp256k1;
+    use moveos_std::hash;
+    use rooch_framework::ecdsa_k1;
 
     const ETOSTRING_VALUE_TOO_LARGE: u64 = 100;
     const ELOG10_VALUE_TOO_LARGE: u64 = 101;
@@ -101,7 +100,7 @@ module free_tunnel_aptos::utils {
 
     public fun ethAddressFromPubkey(pk: vector<u8>): vector<u8> {
         assert!(vector::length(&pk) == 64, EINVALID_PUBLIC_KEY);
-        let hash = aptos_hash::keccak256(pk);
+        let hash = hash::keccak256(&pk);
         let ethAddr = vector::empty<u8>();
         let i = 12;
         while (i < 32) {
@@ -116,16 +115,11 @@ module free_tunnel_aptos::utils {
         let v = *vector::borrow_mut(&mut s, 0) >> 7;
         *vector::borrow_mut(&mut s, 0) = *vector::borrow(&s, 0) & 0x7f;
         vector::append(&mut r, s);
-        let digest = aptos_hash::keccak256(msg);
-        let ecdsaSig = secp256k1::ecdsa_signature_from_bytes(r);
-        let pk = secp256k1::ecdsa_recover(digest, v, &ecdsaSig);
-        if (option::is_some(&pk)) {
-            let extracted = option::extract(&mut pk);
-            let rawPk = secp256k1::ecdsa_raw_public_key_to_bytes(&extracted);
-            ethAddressFromPubkey(rawPk)
-        } else {
-            vector::empty<u8>()
-        }
+        vector::push_back(&mut r, v);
+        let compressed_pk = ecdsa_k1::ecrecover(&r, &msg, 0);
+        let pk = ecdsa_k1::decompress_pubkey(&compressed_pk);
+        vector::remove(&mut pk, 0); // drop '04' prefix
+        ethAddressFromPubkey(pk)
     }
 
     fun assertEthAddress(addr: &vector<u8>) {
