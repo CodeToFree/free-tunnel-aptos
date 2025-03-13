@@ -10,7 +10,6 @@ module free_tunnel_aptos::atomic_mint {
     use aptos_framework::primary_fungible_store;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
-    use oft::oft_fa;
 
 
     // =========================== Constants ==========================
@@ -26,6 +25,8 @@ module free_tunnel_aptos::atomic_mint {
     const ENOT_BURN_UNLOCK: u64 = 56;
     const EALREADY_HAVE_MINTERCAP: u64 = 57;
     const ENOT_DEPLOYER: u64 = 58;
+
+    const NOT_IMPLEMENTED: u64 = 59;
 
 
     // ============================ Storage ===========================
@@ -177,8 +178,9 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let contract_signer = get_store_contract_signer();
-        oft_fa::mint(&contract_signer, recipient, amount);
+        // Call `mint` here and replace the next 2 lines
+        amount;
+        assert!(false, NOT_IMPLEMENTED);
 
         event::emit(TokenMintExecuted{ reqId, recipient });
     }
@@ -266,8 +268,9 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        let contract_signer = get_store_contract_signer();
-        oft_fa::burn(&contract_signer, get_store_address(), amount);
+        // Call `burn` here and replace the next 2 lines
+        amount;
+        assert!(false, NOT_IMPLEMENTED);
 
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }
