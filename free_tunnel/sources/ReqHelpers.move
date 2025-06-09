@@ -16,8 +16,8 @@ module free_tunnel_aptos::req_helpers {
 
     // =========================== Constants ==========================
     // const CHAIN: u8 = 0xa5;     // For Aptos Mainnet
-    // const CHAIN: u8 = 0xa6;     // For Movement Mainnet
-    const CHAIN: u8 = 0xff;        // For Testnets
+    const CHAIN: u8 = 0xa6;     // For Movement Mainnet
+    // const CHAIN: u8 = 0xff;        // For Testnets
 
     const ETOKEN_INDEX_OCCUPIED: u64 = 0;
     const ETOKEN_INDEX_CANNOT_BE_ZERO: u64 = 1;
