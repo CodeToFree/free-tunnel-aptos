@@ -16,8 +16,8 @@ module free_tunnel_aptos::req_helpers {
 
     // =========================== Constants ==========================
     // const CHAIN: u8 = 0xa5;     // For Aptos Mainnet
-    // const CHAIN: u8 = 0xa6;     // For Movement Mainnet
-    const CHAIN: u8 = 0xff;        // For Testnets
+    const CHAIN: u8 = 0xa6;     // For Movement Mainnet
+    // const CHAIN: u8 = 0xff;        // For Testnets
 
     const ETOKEN_INDEX_OCCUPIED: u64 = 0;
     const ETOKEN_INDEX_CANNOT_BE_ZERO: u64 = 1;
@@ -30,7 +30,7 @@ module free_tunnel_aptos::req_helpers {
     const EAMOUNT_CANNOT_BE_ZERO: u64 = 8;
     const ETOKEN_TYPE_MISMATCH: u64 = 9;
 
-    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"Bridge" }
+    public(friend) fun BRIDGE_CHANNEL(): vector<u8> { b"Avalon Bridge" }
     public(friend) fun PROPOSE_PERIOD(): u64 { 172800 }         // 48 hours
     public(friend) fun EXPIRE_PERIOD(): u64 { 259200 }          // 72 hours
     public(friend) fun EXPIRE_EXTRA_PERIOD(): u64 { 345600 }    // 96 hours
@@ -146,7 +146,7 @@ module free_tunnel_aptos::req_helpers {
         let storeR = borrow_global_mut<ReqHelpersStorage>(@free_tunnel_aptos);
         let amount = decodeAmount(reqId);
         let tokenIndex = decodeTokenIndex(reqId);
-        let decimals = fungible_asset::decimals<Metadata>(*storeR.tokens.borrow(tokenIndex)) as u64;
+        let decimals = (fungible_asset::decimals<Metadata>(*table::borrow(&storeR.tokens, tokenIndex)) as u64);
         if (decimals > 6) {
             amount = amount * math64::pow(10, decimals - 6);
         } else if (decimals < 6) {
@@ -215,7 +215,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage1() {
         // action 1: lock-mint
         let reqId = x"112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n104[Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n111[Avalon Bridge]\nSign to execute a lock-mint:\n0x112233445566018899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -223,7 +223,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage2() {
         // action 2: burn-unlock
         let reqId = x"112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n106[Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n113[Avalon Bridge]\nSign to execute a burn-unlock:\n0x112233445566028899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
@@ -231,7 +231,7 @@ module free_tunnel_aptos::req_helpers {
     fun testMsgFromReqSigningMessage3() {
         // action 3: burn-mint
         let reqId = x"112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
-        let expected = b"\x19Ethereum Signed Message:\n104[Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
+        let expected = b"\x19Ethereum Signed Message:\n111[Avalon Bridge]\nSign to execute a burn-mint:\n0x112233445566038899aabbccddeeff004040ffffffffffffffffffffffffffff";
         assert!(msgFromReqSigningMessage(&reqId) == expected, 1);
     }
 
