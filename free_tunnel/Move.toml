@@ -8,4 +8,4 @@ AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", re
 
 [addresses]
 std = "0x1"
-free_tunnel_aptos = "_"
+free_tunnel_admin = "_"

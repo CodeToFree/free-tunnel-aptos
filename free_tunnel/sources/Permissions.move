@@ -45,13 +45,13 @@ module free_tunnel_aptos::permissions {
         _exeActiveSinceForIndex: vector<u64>,
     }
 
-    fun init_module(admin: &signer) {
-        initPermissionsStorage(admin);
+    fun init_module(deployer: &signer) {
+        initPermissionsStorage(deployer);
     }
 
-    public(friend) fun initPermissionsStorage(admin: &signer) {
-        move_to(admin, PermissionsStorage {
-            _admin: signer::address_of(admin),
+    public(friend) fun initPermissionsStorage(deployer: &signer) {
+        move_to(deployer, PermissionsStorage {
+            _admin: @free_tunnel_admin,
             _proposerIndex: table::new(),
             _proposerList: vector::empty(),
             _executorsForIndex: vector::empty(),
@@ -105,13 +105,7 @@ module free_tunnel_aptos::permissions {
         assert!(table::contains(&storeP._proposerIndex, signer::address_of(sender)), ENOT_PROPOSER);
     }
 
-    public(friend) fun initAdminInternal(admin: address) acquires PermissionsStorage {
-        let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
-        storeP._admin = admin;
-        event::emit(AdminTransferred { prevAdmin: @0x0, newAdmin: admin });
-    }
-
-    public(friend) fun transferAdmin(sender: &signer, newAdmin: address) acquires PermissionsStorage {
+    public entry fun transferAdmin(sender: &signer, newAdmin: address) acquires PermissionsStorage {
         assertOnlyAdmin(sender);
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
         let prevAdmin = storeP._admin;
