@@ -10,6 +10,7 @@ module free_tunnel_aptos::atomic_mint {
     use aptos_framework::primary_fungible_store;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
+    use mbtc::mbtc::{mint, burn};
 
 
     // =========================== Constants ==========================
@@ -178,9 +179,7 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        // Call `mint` here and replace the next 2 lines
-        amount;
-        assert!(false, NOT_IMPLEMENTED);
+        mint(&get_store_contract_signer(), recipient, amount);
 
         event::emit(TokenMintExecuted{ reqId, recipient });
     }
@@ -268,9 +267,7 @@ module free_tunnel_aptos::atomic_mint {
         let amount = req_helpers::amountFrom(&reqId);
         let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        // Call `burn` here and replace the next 2 lines
-        amount;
-        assert!(false, NOT_IMPLEMENTED);
+        burn(&get_store_contract_signer(), get_store_address(), amount);
 
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }

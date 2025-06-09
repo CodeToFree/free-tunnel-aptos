@@ -1,14 +1,12 @@
 [package]
-name = "free_tunnel_aptos"
+name = "mbtc"
 version = "1.0.0"
 authors = []
 
 [dependencies]
 AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core", rev = "movement", subdir = "aptos-move/framework/aptos-framework" }
-mbtc = { local = "../mbtc" }
 
 [addresses]
 std = "0x1"
-free_tunnel_admin = "_"
 mbtc = "_"
 admin = "_"

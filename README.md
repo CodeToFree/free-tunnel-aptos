@@ -48,3 +48,57 @@ aptos move test
         └── mint/
             └── AtomicMintContract.move
 ```
+
+### How to Deploy
+
+1. Check `aptos` CLI version
+
+```bash
+aptos --version
+# aptos 3.4.1
+```
+
+Remember to use `aptos 3.4.1` or `aptos 3.5.0` to deploy the contracts on Movement network.
+
+2. Init and fund your account
+
+```bash
+cd mbtc
+aptos init
+# >>> choose `custom`
+# >>> enter rpc: `https://full.testnet.movementinfra.xyz/v1` (for testnet) or `https://mainnet.movementnetwork.xyz/v1` (for mainnet)
+# >>> enter faucet endpoint: `https://faucet.testnet.movementinfra.xyz/` (for testnet)
+# >>> enter private key, or generate a new one
+# record your account address
+```
+
+3. Build and deploy the MBTC contract
+
+```bash
+aptos move compile --dev
+aptos move create-object-and-publish-package --address-name mbtc --named-addresses admin=<admin_address>
+# record your published package object address
+```
+
+4. Build and deploy the Free Tunnel contract
+
+Firstly repeat the step 2 to init your account in `free_tunnel` directory.
+
+```bash
+cd ..
+cd free_tunnel
+aptos init
+```
+
+Then build and deploy the contract. Due to the bug in `aptos v3.4.1` and `aptos v3.5.0`, you need to use the legacy way `move publish` to deploy the contract, instead of using `move create-object-and-publish-package`.
+
+```bash
+aptos move compile --dev
+aptos move publish --named-addresses admin=<mbtc_admin_address>,mbtc=<mbtc_object_address>,free_tunnel_aptos=<free_tunnel_aptos_address>
+```
+
+5. Add minter/burner to whitelist
+
+```bash
+aptos move run --function-id <mbtc_package_address>::mbtc::add_minter --args address:<minter_address>
+```
