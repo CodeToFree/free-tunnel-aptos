@@ -1,0 +1,16 @@
+[package]
+name = "brbtc"
+version = "1.0.0"
+authors = []
+
+[dependencies]
+AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core", rev = "movement", subdir = "aptos-move/framework/aptos-framework" }
+
+[addresses]
+std = "0x1"
+brbtc = "_"
+admin = "_"
+
+[dev-addresses]
+brbtc = "0xaa"
+admin = "0xbb"
