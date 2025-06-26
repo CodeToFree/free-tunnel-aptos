@@ -14,6 +14,9 @@ module brbtc::brbtc {
 
     const ENOT_ADMIN: u64 = 200;
     const ENOT_MINTER: u64 = 201;
+    const ENOT_FREEZER: u64 = 202;
+    const EMISMATCH_LENGTH: u64 = 203;
+    const EEMPTY_RECIPIENTS: u64 = 204;
 
     struct AccessStorage has key, store {
         admin: address,
@@ -24,6 +27,14 @@ module brbtc::brbtc {
         burn_ref: BurnRef,
         transfer_ref: TransferRef,
     }
+
+    /**
+     * ======================================================================================
+     *
+     * CONSTRUCTOR
+     *
+     * ======================================================================================
+     */
 
     fun init_module(brbtc_object_deployer: &signer) {
         let constructor_ref = &object::create_named_object(brbtc_object_deployer, ASSET_SYMBOL);
@@ -56,6 +67,13 @@ module brbtc::brbtc {
         borrow_global_mut<AccessStorage>(@brbtc)
     }
 
+    /**
+     * ======================================================================================
+     *
+     * VIEW FUNCTIONS
+     *
+     * ======================================================================================
+     */
 
     #[view]
     /// Return the address of the managed fungible asset that's created when this module is deployed.
@@ -84,6 +102,13 @@ module brbtc::brbtc {
         primary_fungible_store::is_frozen(user, get_metadata())
     }
 
+    /**
+     * ======================================================================================
+     *
+     * ADMIN
+     *
+     * ======================================================================================
+     */
 
     public entry fun transfer_admin(
         admin: &signer,
@@ -94,54 +119,120 @@ module brbtc::brbtc {
     }
 
     public entry fun add_minter(
-        account: &signer,
+        admin: &signer,
         minter_address: address
     ) acquires AccessStorage {
-        assert!(signer::address_of(account) == store().admin, ENOT_ADMIN);
+        assert!(signer::address_of(admin) == store().admin, ENOT_ADMIN);
         vector::push_back(&mut store_mut().minters, minter_address);
     }
 
     public entry fun remove_minter(
-        account: &signer,
+        admin: &signer,
         minter_address: address
     ) acquires AccessStorage {
-        assert!(signer::address_of(account) == store().admin, ENOT_ADMIN);
+        assert!(signer::address_of(admin) == store().admin, ENOT_ADMIN);
         vector::remove_value(&mut store_mut().minters, &minter_address);
     }
 
     public entry fun add_freezer(
-        account: &signer,
+        admin: &signer,
         freezer_address: address
     ) acquires AccessStorage {
-        assert!(signer::address_of(account) == store().admin, ENOT_ADMIN);
+        assert!(signer::address_of(admin) == store().admin, ENOT_ADMIN);
         vector::push_back(&mut store_mut().freezers, freezer_address);
     }
 
+    public entry fun set_freeze_to_recipient(
+        admin: &signer,
+        freeze_to_recipient: address
+    ) acquires AccessStorage {
+        assert!(signer::address_of(admin) == store().admin, ENOT_ADMIN);
+        store_mut().freeze_to_recipient = freeze_to_recipient;
+    }
 
-    // public entry fun mint(
-    //     account: &signer,
-    //     to: address,
-    //     amount: u64
-    // ) acquires AccessStorage {
-    //     assert!(check_minter(signer::address_of(account)), ENOT_MINTER);
-    //     primary_fungible_store::mint(&store().mint_ref, to, amount);
-    // }
+    /**
+     * ======================================================================================
+     *
+     * MINTER
+     *
+     * ======================================================================================
+     */
 
-    // public entry fun burn(
-    //     account: &signer,
-    //     owner: address,
-    //     amount: u64
-    // ) acquires AccessStorage {
-    //     assert!(check_minter(signer::address_of(account)), ENOT_MINTER);
-    //     primary_fungible_store::burn(&store().burn_ref, owner, amount);
-    // }
+    public entry fun mint(
+        minter: &signer,
+        to: address,
+        amount: u64
+    ) acquires AccessStorage {
+        assert!(check_minter(signer::address_of(minter)), ENOT_MINTER);
+        primary_fungible_store::mint(&store().mint_ref, to, amount);
+    }
 
-    // freeze users
+    public entry fun burn(
+        burner: &signer, // could be anyone
+        amount: u64
+    ) acquires AccessStorage {
+        primary_fungible_store::burn(&store().burn_ref, signer::address_of(burner), amount);
+    }
 
-    // unfreeze users
+    /**
+     * ======================================================================================
+     *
+     * FREEZER
+     *
+     * ======================================================================================
+     */
 
-    // batch transfer
+    public entry fun freeze_users(
+        freezer: &signer,
+        users: vector<address>
+    ) acquires AccessStorage {
+        assert!(check_freezer(signer::address_of(freezer)), ENOT_FREEZER);
+        let i = 0;
+        while (i < vector::length(&users)) {
+            primary_fungible_store::set_frozen_flag(&store().transfer_ref, *vector::borrow(&users, i), true);
+            i = i + 1;
+        }
+    }
 
-    // transfer to freeze_to_recipient
-    
+    public entry fun unfreeze_users(
+        freezer: &signer,
+        users: vector<address>
+    ) acquires AccessStorage {
+        assert!(check_freezer(signer::address_of(freezer)), ENOT_FREEZER);
+        let i = 0;
+        while (i < vector::length(&users)) {
+            primary_fungible_store::set_frozen_flag(&store().transfer_ref, *vector::borrow(&users, i), false);
+            i = i + 1;
+        }
+    }
+
+    /**
+     * ======================================================================================
+     *
+     * USER INTERACTION
+     *
+     * ======================================================================================
+     */
+
+    public entry fun batch_transfer(
+        sender: &signer,
+        recipients: vector<address>,
+        amounts: vector<u64>
+    ) {
+        assert!(vector::length(&recipients) > 0, EEMPTY_RECIPIENTS);
+        assert!(vector::length(&recipients) == vector::length(&amounts), EMISMATCH_LENGTH);
+        let i = 0;
+        while (i < vector::length(&recipients)) {
+            primary_fungible_store::transfer(sender, get_metadata(), *vector::borrow(&recipients, i), *vector::borrow(&amounts, i));
+            i = i + 1;
+        }
+    }
+
+    public entry fun transfer_to_freeze_to_recipient(
+        sender: &signer,
+        amount: u64
+    ) acquires AccessStorage {
+        primary_fungible_store::transfer_with_ref(&store().transfer_ref, signer::address_of(sender), store().freeze_to_recipient, amount);
+    }
+
 }
