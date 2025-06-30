@@ -1,4 +1,4 @@
-module brbtc::brbtc {
+module bedrock_asset::unibtc {
 
     use std::option;
     use std::vector;
@@ -8,8 +8,8 @@ module brbtc::brbtc {
     use std::primary_fungible_store;
     use std::string::utf8;
 
-    const ASSET_SYMBOL: vector<u8> = b"brBTC";
-    const ASSET_NAME: vector<u8> = b"brBTC";
+    const ASSET_SYMBOL: vector<u8> = b"unibtc";
+    const ASSET_NAME: vector<u8> = b"unibtc";
     const ASSET_DECIMALS: u8 = 8;
 
     const ENOT_ADMIN: u64 = 200;
@@ -36,16 +36,16 @@ module brbtc::brbtc {
      * ======================================================================================
      */
 
-    fun init_module(brbtc_object_deployer: &signer) {
-        let constructor_ref = &object::create_named_object(brbtc_object_deployer, ASSET_SYMBOL);
+    fun init_module(unibtc_object_deployer: &signer) {
+        let constructor_ref = &object::create_named_object(unibtc_object_deployer, ASSET_SYMBOL);
         primary_fungible_store::create_primary_store_enabled_fungible_asset(
             constructor_ref,
             option::none(),
             utf8(ASSET_NAME),
             utf8(ASSET_SYMBOL),
             ASSET_DECIMALS,
-            utf8(b"https://etherscan.io/token/images/bedrockbrbtc_32.png"),
-            utf8(b"https://app.bedrock.technology/brbtc"),
+            utf8(b"https://etherscan.io/token/images/bedrockunibtc_32.png"),
+            utf8(b"https://app.bedrock.technology/unibtc"),
         );
         let metadata_object_signer = object::generate_signer(constructor_ref);
         move_to(&metadata_object_signer, AccessStorage {
@@ -60,11 +60,11 @@ module brbtc::brbtc {
     }
 
     inline fun store(): &AccessStorage {
-        borrow_global<AccessStorage>(@brbtc)
+        borrow_global<AccessStorage>(@bedrock_asset)
     }
 
     inline fun store_mut(): &mut AccessStorage {
-        borrow_global_mut<AccessStorage>(@brbtc)
+        borrow_global_mut<AccessStorage>(@bedrock_asset)
     }
 
     /**
@@ -78,7 +78,7 @@ module brbtc::brbtc {
     #[view]
     /// Return the address of the managed fungible asset that's created when this module is deployed.
     public fun get_metadata(): Object<Metadata> {
-        let asset_address = object::create_object_address(&@brbtc, ASSET_SYMBOL);
+        let asset_address = object::create_object_address(&@bedrock_asset, ASSET_SYMBOL);
         object::address_to_object<Metadata>(asset_address)
     }
 
