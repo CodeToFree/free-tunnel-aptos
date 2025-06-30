@@ -1,12 +1,12 @@
 [package]
-name = "free_tunnel_aptos"
+name = "bedrock_asset"
 version = "1.0.0"
 authors = []
 
 [dependencies]
 AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core", rev = "movement", subdir = "aptos-move/framework/aptos-framework" }
-bedrock_asset = { local = "../bedrock_asset" }
 
 [addresses]
 std = "0x1"
-free_tunnel_admin = "_"
+admin = "_"
+bedrock_asset = "_"

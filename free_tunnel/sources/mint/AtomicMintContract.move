@@ -10,6 +10,8 @@ module free_tunnel_aptos::atomic_mint {
     use aptos_framework::primary_fungible_store;
     use free_tunnel_aptos::req_helpers::{Self, EXPIRE_PERIOD, EXPIRE_EXTRA_PERIOD};
     use free_tunnel_aptos::permissions;
+    use bedrock_asset::brbtc;
+    use bedrock_asset::unibtc;
 
 
     // =========================== Constants ==========================
@@ -176,11 +178,15 @@ module free_tunnel_aptos::atomic_mint {
         *table::borrow_mut(&mut storeA.proposedMint, reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
+        let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        // Call `mint` here and replace the next 2 lines
-        amount;
-        assert!(false, NOT_IMPLEMENTED);
+        if (tokenIndex == 194) {
+            unibtc::mint(&get_store_contract_signer(), recipient, amount);
+        } else if (tokenIndex == 197) {
+            brbtc::mint(&get_store_contract_signer(), recipient, amount);
+        } else {
+            assert!(false, NOT_IMPLEMENTED);
+        };
 
         event::emit(TokenMintExecuted{ reqId, recipient });
     }
@@ -266,11 +272,15 @@ module free_tunnel_aptos::atomic_mint {
         *table::borrow_mut(&mut storeA.proposedBurn, reqId) = EXECUTED_PLACEHOLDER;
 
         let amount = req_helpers::amountFrom(&reqId);
-        let _tokenIndex = req_helpers::tokenIndexFrom(&reqId);
+        let tokenIndex = req_helpers::tokenIndexFrom(&reqId);
 
-        // Call `burn` here and replace the next 2 lines
-        amount;
-        assert!(false, NOT_IMPLEMENTED);
+        if (tokenIndex == 194) {
+            unibtc::burn(&get_store_contract_signer(), get_store_address(), amount);
+        } else if (tokenIndex == 197) {
+            brbtc::burn(&get_store_contract_signer(), get_store_address(), amount);
+        } else {
+            assert!(false, NOT_IMPLEMENTED);
+        };
 
         event::emit(TokenBurnExecuted{ reqId, proposer: proposerAddress });
     }
