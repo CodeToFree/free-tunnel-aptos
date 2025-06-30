@@ -64,9 +64,10 @@ module free_tunnel_aptos::permissions {
         sender: &signer,
         executors: vector<vector<u8>>,
         threshold: u64,
+        exeIndex: u64,
     ) acquires PermissionsStorage {
         assertOnlyAdmin(sender);
-        initExecutorsInternal(executors, threshold);
+        initExecutorsInternal(executors, threshold, exeIndex);
     }
 
     #[event]
@@ -141,12 +142,22 @@ module free_tunnel_aptos::permissions {
         event::emit(ProposerRemoved { proposer });
     }
 
-    public(friend) fun initExecutorsInternal(executors: vector<vector<u8>>, threshold: u64) acquires PermissionsStorage {
+    public(friend) fun initExecutorsInternal(
+        executors: vector<vector<u8>>, 
+        threshold: u64, 
+        exeIndex: u64,
+    ) acquires PermissionsStorage {
         let storeP = borrow_global_mut<PermissionsStorage>(@free_tunnel_aptos);
         assertEthAddressList(&executors);
         assert!(threshold <= vector::length(&executors), ENOT_MEET_THRESHOLD);
         assert!(vector::length(&storeP._exeActiveSinceForIndex) == 0, EEXECUTORS_ALREADY_INITIALIZED);
         assert!(threshold > 0, ETHRESHOLD_MUST_BE_GREATER_THAN_ZERO);
+        while (exeIndex > 0) {
+            vector::push_back(&mut storeP._executorsForIndex, vector::empty());
+            vector::push_back(&mut storeP._exeThresholdForIndex, 0);
+            vector::push_back(&mut storeP._exeActiveSinceForIndex, 0);
+            exeIndex = exeIndex - 1;
+        };
         checkExecutorsNotDuplicated(executors);
         vector::push_back(&mut storeP._executorsForIndex, executors);
         vector::push_back(&mut storeP._exeThresholdForIndex, threshold);
