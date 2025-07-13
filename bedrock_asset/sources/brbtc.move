@@ -10,7 +10,7 @@ module bedrock_asset::brbtc {
 
     const ASSET_SYMBOL: vector<u8> = b"brBTC";
     const ASSET_NAME: vector<u8> = b"brBTC";
-    const ASSET_DECIMALS: u8 = 18;
+    const ASSET_DECIMALS: u8 = 8;
 
     const ENOT_ADMIN: u64 = 200;
     const ENOT_MINTER: u64 = 201;
